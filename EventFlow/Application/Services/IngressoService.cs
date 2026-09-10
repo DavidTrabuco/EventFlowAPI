@@ -18,7 +18,7 @@ namespace EventFlow.Application.Services
             _context = context;
         }
 
-        public async Task<Ingresso> ComprarIngressoAsync(ComprarIngressoRequest request)
+        public async Task<Ingresso> ComprarIngressoAsync(ComprarIngressoRequest request, int participanteId)
         {
             var evento = await _context.Eventos.FindAsync(request.EventoId);
             if (evento == null)
@@ -27,7 +27,7 @@ namespace EventFlow.Application.Services
             }
 
             var participanteExiste = await _context.Participantes
-                .AnyAsync(p => p.Id == request.ParticipanteId);
+                .AnyAsync(p => p.Id == participanteId);
 
             if (!participanteExiste)
             {
@@ -49,7 +49,7 @@ namespace EventFlow.Application.Services
             // RN03: apenas ingressos ATIVOS contam. Cancelado libera a vaga do limite.
             var ativosDoParticipante = await _context.Ingressos.CountAsync(i =>
                 i.EventoId == request.EventoId &&
-                i.ParticipanteId == request.ParticipanteId &&
+                i.ParticipanteId == participanteId &&
                 i.Status == StatusIngresso.Ativo);
 
             if (ativosDoParticipante >= LimiteIngressosPorParticipante)
@@ -61,7 +61,7 @@ namespace EventFlow.Application.Services
             var ingresso = new Ingresso
             {
                 EventoId = request.EventoId,
-                ParticipanteId = request.ParticipanteId,
+                ParticipanteId = participanteId,
                 DataHoraCompra = DateTime.UtcNow,
                 ValorPago = evento.PrecoIngresso,                    // preço vem do evento
                 CodigoValidacao = await GerarCodigoUnicoAsync(),     // RN05
@@ -76,13 +76,20 @@ namespace EventFlow.Application.Services
             return ingresso;
         }
 
-        public async Task<bool> CancelarIngressoAsync(int ingressoId)
+        public async Task<bool> CancelarIngressoAsync(int ingressoId, int participanteId)
         {
             var ingresso = await _context.Ingressos
                 .Include(i => i.Evento)
                 .FirstOrDefaultAsync(i => i.Id == ingressoId);
 
             if (ingresso == null)
+            {
+                throw new KeyNotFoundException("Ingresso não encontrado.");
+            }
+
+            // Um ingresso de outro participante e tratado como inexistente:
+            // responder "nao e seu" confirmaria que o id existe.
+            if (ingresso.ParticipanteId != participanteId)
             {
                 throw new KeyNotFoundException("Ingresso não encontrado.");
             }

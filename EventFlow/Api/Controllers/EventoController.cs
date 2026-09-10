@@ -1,11 +1,13 @@
-using EventFlow.Application.DTOs.Request;
+﻿using EventFlow.Application.DTOs.Request;
 using EventFlow.Application.DTOs.Response;
 using EventFlow.Domain.Interface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventFlow.Api.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class EventoController : ControllerBase
     {
@@ -16,6 +18,7 @@ namespace EventFlow.Api.Controllers
             _eventoService = eventoService;
         }
 
+        [Authorize(Roles = "Organizador")]
         [HttpPost]
         public async Task<IActionResult> CriarEvento([FromBody] CriarEventoRequest request)
         {
@@ -52,6 +55,7 @@ namespace EventFlow.Api.Controllers
             return Ok(EventoResponse.De(evento));
         }
 
+        [Authorize(Roles = "Organizador")]
         [HttpPut("{id}/inativar")]
         public async Task<IActionResult> InativarEvento(int id)
         {
@@ -68,6 +72,7 @@ namespace EventFlow.Api.Controllers
             }
         }
 
+        [Authorize(Roles = "Organizador")]
         [HttpPut("{id}")]
         public async Task<IActionResult> AtualizarEvento(int id, [FromBody] AtualizarEventoRequest request)
         {

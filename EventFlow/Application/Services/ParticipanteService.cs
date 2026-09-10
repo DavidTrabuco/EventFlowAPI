@@ -15,10 +15,14 @@ namespace EventFlow.Application.Services
             _context = context;
         }
 
-        public async Task<Participante> CriarParticipanteAsync(CriarParticipanteRequest request)
+        public async Task<Participante> CriarParticipanteAsync(CriarParticipanteRequest request, int usuarioId)
         {
-            // O provider InMemory NÃO aplica o índice único de CPF declarado no
-            // DbContext. Enquanto não houver banco real, a unicidade é garantida aqui.
+            var jaTemPerfil = await _context.Participantes.AnyAsync(p => p.UsuarioId == usuarioId);
+            if (jaTemPerfil)
+            {
+                throw new InvalidOperationException("Este usuario ja possui um perfil de participante.");
+            }
+
             var cpfEmUso = await _context.Participantes.AnyAsync(p => p.Cpf == request.Cpf);
             if (cpfEmUso)
             {
@@ -35,7 +39,8 @@ namespace EventFlow.Application.Services
             {
                 Nome = request.Nome,
                 Email = request.Email,
-                Cpf = request.Cpf
+                Cpf = request.Cpf,
+                UsuarioId = usuarioId
             };
 
             _context.Participantes.Add(participante);
@@ -49,5 +54,8 @@ namespace EventFlow.Application.Services
 
         public async Task<Participante?> ObterPorIdAsync(int id) =>
             await _context.Participantes.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+
+        public async Task<Participante?> ObterPorUsuarioIdAsync(int usuarioId) =>
+            await _context.Participantes.AsNoTracking().FirstOrDefaultAsync(p => p.UsuarioId == usuarioId);
     }
 }

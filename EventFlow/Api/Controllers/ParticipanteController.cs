@@ -1,11 +1,14 @@
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Application.DTOs.Response;
 using EventFlow.Domain.Interface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EventFlow.Api.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class ParticipanteController : ControllerBase
     {
@@ -19,9 +22,11 @@ namespace EventFlow.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> CriarParticipante([FromBody] CriarParticipanteRequest request)
         {
+            var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
             try
             {
-                var participante = await _participanteService.CriarParticipanteAsync(request);
+                var participante = await _participanteService.CriarParticipanteAsync(request, usuarioId);
                 return CreatedAtAction(
                     nameof(ObterParticipantePorId),
                     new { id = participante.Id },
@@ -37,6 +42,7 @@ namespace EventFlow.Api.Controllers
             }
         }
 
+        [Authorize(Roles = "Organizador")]
         [HttpGet]
         public async Task<IActionResult> ListarParticipantes()
         {
