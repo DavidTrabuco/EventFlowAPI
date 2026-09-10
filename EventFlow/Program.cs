@@ -58,6 +58,13 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Cria o banco na primeira execucao e popula com dados de exemplo.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<EventFlowDbContext>();
+    await DbSeeder.InicializarAsync(db);
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

@@ -361,7 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-# Banco local SQLite
+# Banco SQLite: cada pessoa gera o proprio ao rodar a aplicacao
+# (ver Infrastructure/Data/DbSeeder.cs). Nao vai para o repositorio.
 *.db
 *.db-shm
 *.db-wal
