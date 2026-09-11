@@ -18,7 +18,7 @@ namespace EventFlow.Application.Services
             _context = context;
         }
 
-        public async Task<Evento> CriarEventoAsync(CriarEventoRequest request)
+        public async Task<Evento> CriarEventoAsync(CriarEventoRequest request, int organizadorId)
         {
            
             var dataHoraUtc = request.DataHora.Kind == DateTimeKind.Utc
@@ -40,7 +40,8 @@ namespace EventFlow.Application.Services
                 CapacidadeMaxima = request.CapacidadeMaxima,
                 PrecoIngresso = request.PrecoIngresso,
                 IngressosVendidos = 0,
-                Ativo = true
+                Ativo = true,
+                OrganizadorId = organizadorId   // vem do token, nunca do corpo
             };
 
             _context.Eventos.Add(evento);
@@ -55,10 +56,13 @@ namespace EventFlow.Application.Services
         public Task<Evento?> ObterPorIdAsync(int id) => _eventos.ObterPorIdAsync(id);
 
        
-        public async Task<bool> InativarEventoAsync(int id)
+        public async Task<bool> InativarEventoAsync(int id, int organizadorId)
         {
             var evento = await _context.Eventos.FindAsync(id);
-            if (evento == null)
+
+            // Evento de outro organizador e tratado como inexistente: dizer
+            // "nao e seu" confirmaria que o id existe, e os ids sao sequenciais.
+            if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
             }
@@ -73,10 +77,13 @@ namespace EventFlow.Application.Services
             return true;
         }
 
-        public async Task<Evento> AtualizarEventoAsync(int id, AtualizarEventoRequest request)
+        public async Task<Evento> AtualizarEventoAsync(int id, AtualizarEventoRequest request, int organizadorId)
         {
             var evento = await _context.Eventos.FindAsync(id);
-            if (evento == null)
+
+            // Evento de outro organizador e tratado como inexistente: dizer
+            // "nao e seu" confirmaria que o id existe, e os ids sao sequenciais.
+            if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
             }

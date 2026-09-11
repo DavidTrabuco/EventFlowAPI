@@ -49,7 +49,7 @@ namespace EventFlow.Api.Controllers
             var participantes = await _participanteService.ListarParticipantesAsync();
             return Ok(participantes.Select(ParticipanteResponse.De));
         }
-
+        
         [HttpGet("{id}")]
         public async Task<IActionResult> ObterParticipantePorId(int id)
         {
@@ -58,6 +58,15 @@ namespace EventFlow.Api.Controllers
             {
                 return NotFound(new { message = "Participante não encontrado." });
             }
+
+            
+            var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (!User.IsInRole("Organizador") && participante.UsuarioId != usuarioId)
+            {
+                return NotFound(new { message = "Participante não encontrado." });
+            }
+
+
 
             return Ok(ParticipanteResponse.De(participante));
         }

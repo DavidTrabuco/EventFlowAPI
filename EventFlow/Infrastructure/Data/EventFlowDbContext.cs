@@ -25,6 +25,23 @@ namespace EventFlow.Infrastructure.Data
                 entity.Property(e => e.Descricao).HasMaxLength(500);
                 entity.Property(e => e.Local).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.PrecoIngresso).HasPrecision(18, 2);
+
+                // O dono do evento. Sem isso, qualquer Organizador edita o
+                // evento de qualquer outro — e como o cadastro permite se
+                // declarar Organizador, isso significa qualquer pessoa.
+                //
+                // Restrict, nao Cascade: apagar um organizador NAO pode apagar
+                // os eventos dele, porque ha ingressos vendidos apontando para
+                // eles. O banco recusa a exclusao ate alguem decidir o que
+                // fazer com os eventos.
+                //
+                // Nao precisa de HasIndex: o EF cria o indice sozinho para
+                // toda chave estrangeira.
+                entity.HasOne<Usuario>()
+                      .WithMany()
+                      .HasForeignKey(e => e.OrganizadorId)
+                      .IsRequired()
+                      .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Participante>(entity =>

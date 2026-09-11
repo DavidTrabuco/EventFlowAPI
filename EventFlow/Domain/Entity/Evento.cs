@@ -7,6 +7,8 @@ namespace EventFlow.Domain.Entity
 
         public int Id { get; set; }
         public string Titulo { get; set; } = string.Empty;
+
+        public int OrganizadorId { get; set; }
         public string Descricao { get; set; } = string.Empty;
         public DateTime DataHora { get; set; }
         public string Local { get; set; } = string.Empty;

@@ -1,8 +1,10 @@
-﻿using EventFlow.Application.DTOs.Request;
+using EventFlow.Application.DTOs.Request;
 using EventFlow.Application.DTOs.Response;
+using EventFlow.Domain.Entity;
 using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EventFlow.Api.Controllers
 {
@@ -24,7 +26,10 @@ namespace EventFlow.Api.Controllers
         {
             try
             {
-                var evento = await _eventoService.CriarEventoAsync(request);
+                // O id vem do token assinado, nunca do corpo da requisicao.
+                var organizadorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+                var evento = await _eventoService.CriarEventoAsync(request, organizadorId);
                 return CreatedAtAction(
                     nameof(ObterEventoPorId),
                     new { id = evento.Id },
@@ -61,7 +66,9 @@ namespace EventFlow.Api.Controllers
         {
             try
             {
-                var inativado = await _eventoService.InativarEventoAsync(id);
+                var organizadorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+                var inativado = await _eventoService.InativarEventoAsync(id, organizadorId);
                 return inativado
                     ? NoContent()
                     : BadRequest(new { message = "O evento já está inativo." });
@@ -78,7 +85,10 @@ namespace EventFlow.Api.Controllers
         {
             try
             {
-                var eventoAtualizado = await _eventoService.AtualizarEventoAsync(id, request);
+                var organizadorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+                var eventoAtualizado = await _eventoService.AtualizarEventoAsync(
+                    id, request, organizadorId);
                 return Ok(EventoResponse.De(eventoAtualizado));
             }
             catch (KeyNotFoundException ex)

@@ -49,7 +49,8 @@ namespace EventFlow.Infrastructure.Data
                 CapacidadeMaxima = 50,
                 IngressosVendidos = 1,
                 PrecoIngresso = 120m,
-                Ativo = true
+                Ativo = true,
+                OrganizadorId = ana.Id     // a Ana e a dona deste evento
             };
 
             var participante = new Participante

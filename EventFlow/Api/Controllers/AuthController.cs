@@ -1,6 +1,7 @@
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EventFlow.Api.Controllers
 {
@@ -19,7 +20,7 @@ namespace EventFlow.Api.Controllers
             _authService = authService;
             _tokenService = tokenService;
         }
-
+        [EnableRateLimiting("login")]
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
