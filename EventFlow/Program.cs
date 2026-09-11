@@ -1,6 +1,8 @@
 using EventFlow.Application.Services;
 using EventFlow.Domain.Interface;
+using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
+using EventFlow.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -35,7 +37,7 @@ builder.Services
         {
             OnMessageReceived = context =>
             {
-                if (context.Request.Cookies.TryGetValue("access_token", out var token))
+                if (context.Request.Cookies.TryGetValue("acesso", out var token))
                     context.Token = token;
                 return Task.CompletedTask;
             }
@@ -43,6 +45,12 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
+// Repositorios de LEITURA (Dapper). A escrita continua no EF, nos services.
+builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IEventoRepository, EventoRepository>();
+builder.Services.AddScoped<IParticipanteRepository, ParticipanteRepository>();
+builder.Services.AddScoped<IIngressoRepository, IngressoRepository>();
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();

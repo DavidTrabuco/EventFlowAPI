@@ -48,7 +48,7 @@ namespace EventFlow.Application.Services
         }
 
         // 32 bytes de entropia criptografica. Nunca Random: ele e previsivel.
-        public string GerarRefreshToken()
+        public string GerarTokenSessao()
         {
             var bytes = RandomNumberGenerator.GetBytes(32);
             return Convert.ToBase64String(bytes);
@@ -56,9 +56,9 @@ namespace EventFlow.Application.Services
 
         // SHA-256 e nao BCrypt: o valor ja tem 256 bits de entropia,
         // forca bruta e inviavel e a lentidao do BCrypt so atrasaria a renovacao.
-        public string HashRefreshToken(string refreshToken)
+        public string HashTokenSessao(string tokenSessao)
         {
-            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(tokenSessao));
             return Convert.ToBase64String(bytes);
         }
 

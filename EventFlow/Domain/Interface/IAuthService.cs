@@ -8,9 +8,9 @@ namespace EventFlow.Domain.Interface
         Task<Usuario?> AutenticarAsync(string email, string senha);
         Task<bool> RegistrarAsync(RegistrarRequest request);
 
-        Task<RefreshToken> CriarRefreshTokenAsync(int usuarioId, string tokenHash);
-        Task<Usuario?> ValidarRefreshTokenAsync(string tokenHash);
-        Task RevogarAsync(string tokenHash);
-        Task RevogarTodosDoUsuarioAsync(int usuarioId);
+        Task<Sessao> CriarSessaoAsync(int usuarioId, string tokenHash);
+        Task<Usuario?> ValidarSessaoAsync(string tokenHash);
+        Task EncerrarAsync(string tokenHash);
+        Task EncerrarTodasDoUsuarioAsync(int usuarioId);
     }
 }

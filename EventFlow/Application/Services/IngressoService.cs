@@ -2,6 +2,7 @@ using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Entity;
 using EventFlow.Domain.Enums;
 using EventFlow.Domain.Interface;
+using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,10 +12,16 @@ namespace EventFlow.Application.Services
     {
         private const int LimiteIngressosPorParticipante = 5;
 
-        private readonly EventFlowDbContext _context;
+        private readonly IIngressoRepository _ingressos;    // leitura (Dapper)
+        private readonly IParticipanteRepository _participantes;
+        private readonly EventFlowDbContext _context;       // escrita (EF)
 
-        public IngressoService(EventFlowDbContext context)
+        public IngressoService(IIngressoRepository ingressos,
+                               IParticipanteRepository participantes,
+                               EventFlowDbContext context)
         {
+            _ingressos = ingressos;
+            _participantes = participantes;
             _context = context;
         }
 
@@ -26,8 +33,7 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException("Evento não encontrado.");
             }
 
-            var participanteExiste = await _context.Participantes
-                .AnyAsync(p => p.Id == participanteId);
+            var participanteExiste = await _participantes.ObterPorIdAsync(participanteId) is not null;
 
             if (!participanteExiste)
             {
@@ -47,10 +53,8 @@ namespace EventFlow.Application.Services
             }
 
             // RN03: apenas ingressos ATIVOS contam. Cancelado libera a vaga do limite.
-            var ativosDoParticipante = await _context.Ingressos.CountAsync(i =>
-                i.EventoId == request.EventoId &&
-                i.ParticipanteId == participanteId &&
-                i.Status == StatusIngresso.Ativo);
+            var ativosDoParticipante =
+                await _ingressos.ContarAtivosAsync(request.EventoId, participanteId);
 
             if (ativosDoParticipante >= LimiteIngressosPorParticipante)
             {
@@ -140,11 +144,8 @@ namespace EventFlow.Application.Services
         }
 
         // RF04: histórico do participante.
-        public async Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId) =>
-            await _context.Ingressos
-                .AsNoTracking()
-                .Where(i => i.ParticipanteId == participanteId)
-                .ToListAsync();
+        public Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId) =>
+            _ingressos.ListarPorParticipanteAsync(participanteId);
 
         // RN05: código de 8 caracteres, único.
         private async Task<string> GerarCodigoUnicoAsync()
@@ -155,7 +156,7 @@ namespace EventFlow.Application.Services
             do
             {
                 codigo = Guid.NewGuid().ToString("N")[..8].ToUpper();
-                jaExiste = await _context.Ingressos.AnyAsync(i => i.CodigoValidacao == codigo);
+                jaExiste = await _ingressos.CodigoJaExisteAsync(codigo);
             }
             while (jaExiste);
 

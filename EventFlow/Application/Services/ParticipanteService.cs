@@ -1,6 +1,7 @@
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Entity;
 using EventFlow.Domain.Interface;
+using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,28 +9,31 @@ namespace EventFlow.Application.Services
 {
     public class ParticipanteService : IParticipanteService
     {
-        private readonly EventFlowDbContext _context;
+        private readonly IParticipanteRepository _participantes;   // leitura (Dapper)
+        private readonly EventFlowDbContext _context;              // escrita (EF)
 
-        public ParticipanteService(EventFlowDbContext context)
+        public ParticipanteService(IParticipanteRepository participantes,
+                                   EventFlowDbContext context)
         {
+            _participantes = participantes;
             _context = context;
         }
 
         public async Task<Participante> CriarParticipanteAsync(CriarParticipanteRequest request, int usuarioId)
         {
-            var jaTemPerfil = await _context.Participantes.AnyAsync(p => p.UsuarioId == usuarioId);
+            var jaTemPerfil = await _participantes.UsuarioJaTemPerfilAsync(usuarioId);
             if (jaTemPerfil)
             {
                 throw new InvalidOperationException("Este usuario ja possui um perfil de participante.");
             }
 
-            var cpfEmUso = await _context.Participantes.AnyAsync(p => p.Cpf == request.Cpf);
+            var cpfEmUso = await _participantes.CpfJaExisteAsync(request.Cpf);
             if (cpfEmUso)
             {
                 throw new InvalidOperationException("Já existe um participante com este CPF.");
             }
 
-            var emailEmUso = await _context.Participantes.AnyAsync(p => p.Email == request.Email);
+            var emailEmUso = await _participantes.EmailJaExisteAsync(request.Email);
             if (emailEmUso)
             {
                 throw new InvalidOperationException("Já existe um participante com este e-mail.");
@@ -49,13 +53,13 @@ namespace EventFlow.Application.Services
             return participante;
         }
 
-        public async Task<IEnumerable<Participante>> ListarParticipantesAsync() =>
-            await _context.Participantes.AsNoTracking().ToListAsync();
+        public Task<IEnumerable<Participante>> ListarParticipantesAsync() =>
+            _participantes.ListarAsync();
 
-        public async Task<Participante?> ObterPorIdAsync(int id) =>
-            await _context.Participantes.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        public Task<Participante?> ObterPorIdAsync(int id) =>
+            _participantes.ObterPorIdAsync(id);
 
-        public async Task<Participante?> ObterPorUsuarioIdAsync(int usuarioId) =>
-            await _context.Participantes.AsNoTracking().FirstOrDefaultAsync(p => p.UsuarioId == usuarioId);
+        public Task<Participante?> ObterPorUsuarioIdAsync(int usuarioId) =>
+            _participantes.ObterPorUsuarioIdAsync(usuarioId);
     }
 }

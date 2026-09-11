@@ -2,22 +2,22 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EventFlow.Domain.Entity
 {
-    public class RefreshToken
+    public class Sessao
     {
         public int Id { get; set; }
 
         public int UsuarioId { get; set; }
         public Usuario? Usuario { get; set; }
 
-        // Guardamos o HASH, nunca o valor original: se a tabela vazar,
-        // o atacante nao consegue reconstruir as sessoes.
+        // Guardamos o HASH do valor, nunca o valor original: se a tabela
+        // vazar, o atacante nao consegue reconstruir sessao nenhuma.
         public string TokenHash { get; set; } = string.Empty;
 
         public DateTime CriadoEm { get; set; }
         public DateTime ExpiraEm { get; set; }
-        public DateTime? RevogadoEm { get; set; }
+        public DateTime? EncerradaEm { get; set; }
 
         [NotMapped]
-        public bool Ativo => RevogadoEm is null && DateTime.UtcNow < ExpiraEm;
+        public bool Ativa => EncerradaEm is null && DateTime.UtcNow < ExpiraEm;
     }
 }

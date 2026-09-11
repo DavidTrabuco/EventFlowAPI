@@ -12,7 +12,7 @@ namespace EventFlow.Infrastructure.Data
         public DbSet<Ingresso> Ingressos => Set<Ingresso>();
 
         public DbSet<Usuario> Usuarios => Set<Usuario>();
-        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<Sessao> Sessoes => Set<Sessao>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -71,18 +71,18 @@ namespace EventFlow.Infrastructure.Data
                 entity.HasIndex(u => u.Email).IsUnique();
             });
 
-            modelBuilder.Entity<RefreshToken>(entity =>
+            modelBuilder.Entity<Sessao>(entity =>
             {
-                entity.HasKey(r => r.Id);
-                entity.Property(r => r.TokenHash).IsRequired().HasMaxLength(88);
-                entity.HasIndex(r => r.TokenHash).IsUnique();
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.TokenHash).IsRequired().HasMaxLength(88);
+                entity.HasIndex(x => x.TokenHash).IsUnique();   // busca a cada renovacao
 
-                entity.HasOne(r => r.Usuario)
+                entity.HasOne(x => x.Usuario)
                       .WithMany()
-                      .HasForeignKey(r => r.UsuarioId)
+                      .HasForeignKey(x => x.UsuarioId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasIndex(r => r.UsuarioId);
+                entity.HasIndex(x => x.UsuarioId);              // encerrar todas de um usuario
             });
         }
     }

@@ -1,6 +1,7 @@
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Entity;
 using EventFlow.Domain.Interface;
+using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,10 +9,12 @@ namespace EventFlow.Application.Services
 {
     public class EventoService : IEventoService
     {
-        private readonly EventFlowDbContext _context;
+        private readonly IEventoRepository _eventos;      // leitura (Dapper)
+        private readonly EventFlowDbContext _context;     // escrita (EF)
 
-        public EventoService(EventFlowDbContext context)
+        public EventoService(IEventoRepository eventos, EventFlowDbContext context)
         {
+            _eventos = eventos;
             _context = context;
         }
 
@@ -46,11 +49,10 @@ namespace EventFlow.Application.Services
             return evento;
         }
 
-        public async Task<IEnumerable<Evento>> ListarEventosAsync() =>
-            await _context.Eventos.AsNoTracking().ToListAsync();
+        // Leitura pura: vai direto para JSON, ninguem altera o resultado.
+        public Task<IEnumerable<Evento>> ListarEventosAsync() => _eventos.ListarAsync();
 
-        public async Task<Evento?> ObterPorIdAsync(int id) =>
-            await _context.Eventos.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id);
+        public Task<Evento?> ObterPorIdAsync(int id) => _eventos.ObterPorIdAsync(id);
 
        
         public async Task<bool> InativarEventoAsync(int id)

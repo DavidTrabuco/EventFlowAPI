@@ -1,4 +1,5 @@
 using EventFlow.Domain.Interface;
+using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Entity;
 using EventFlow.Infrastructure.Data;
@@ -8,18 +9,20 @@ namespace EventFlow.Application.Services
 {
     public class AuthService : IAuthService
     {
-        private const int DiasValidadeRefresh = 7;
+        private const int DiasValidadeSessao = 7;
 
-        private readonly EventFlowDbContext _db;
+        private readonly IUsuarioRepository _usuarios;   // leitura (Dapper)
+        private readonly EventFlowDbContext _db;         // escrita (EF)
 
-        public AuthService(EventFlowDbContext db)
+        public AuthService(IUsuarioRepository usuarios, EventFlowDbContext db)
         {
+            _usuarios = usuarios;
             _db = db;
         }
 
         public async Task<Usuario?> AutenticarAsync(string email, string senha)
         {
-            var usuario = await _db.Usuarios.FirstOrDefaultAsync(u => u.Email == email);
+            var usuario = await _usuarios.ObterPorEmailAsync(email);
             if (usuario == null) return null;
 
             bool senhaValida = BCrypt.Net.BCrypt.Verify(senha, usuario.SenhaHash);
@@ -28,6 +31,10 @@ namespace EventFlow.Application.Services
         
         public async Task<bool> RegistrarAsync(RegistrarRequest request)
         {
+            // A consulta previa da a resposta rapida...
+            if (await _usuarios.EmailJaExisteAsync(request.Email))
+                return false;
+
             var usuario = new Usuario
             {
                 Nome = request.Nome,
@@ -45,67 +52,69 @@ namespace EventFlow.Application.Services
             }
             catch (DbUpdateException)
             {
+                // ...e o indice unico e a rede de seguranca, para quando duas
+                // requisicoes com o mesmo email passarem juntas pela consulta.
                 return false;
             }
 
         }
 
-        public async Task<RefreshToken> CriarRefreshTokenAsync(int usuarioId, string tokenHash)
+        public async Task<Sessao> CriarSessaoAsync(int usuarioId, string tokenHash)
         {
-            var refresh = new RefreshToken
+            var sessao = new Sessao
             {
                 UsuarioId = usuarioId,
                 TokenHash = tokenHash,
                 CriadoEm = DateTime.UtcNow,
-                ExpiraEm = DateTime.UtcNow.AddDays(DiasValidadeRefresh)
+                ExpiraEm = DateTime.UtcNow.AddDays(DiasValidadeSessao)
             };
 
-            _db.RefreshTokens.Add(refresh);
+            _db.Sessoes.Add(sessao);
             await _db.SaveChangesAsync();
-            return refresh;
+            return sessao;
         }
 
-        public async Task<Usuario?> ValidarRefreshTokenAsync(string tokenHash)
+        public async Task<Usuario?> ValidarSessaoAsync(string tokenHash)
         {
-            var refresh = await _db.RefreshTokens
-                .Include(r => r.Usuario)
-                .FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
+            var sessao = await _db.Sessoes
+                .Include(x => x.Usuario)
+                .FirstOrDefaultAsync(x => x.TokenHash == tokenHash);
 
-            if (refresh is null) return null;
+            if (sessao is null) return null;
 
-            // Um token ja revogado sendo reapresentado significa que existe
+            // Um token ja encerrado sendo reapresentado significa que existe
             // uma copia em circulacao. Na duvida, derruba tudo do usuario.
-            if (refresh.RevogadoEm is not null)
+            if (sessao.EncerradaEm is not null)
             {
-                await RevogarTodosDoUsuarioAsync(refresh.UsuarioId);
+                await EncerrarTodasDoUsuarioAsync(sessao.UsuarioId);
                 return null;
             }
 
-            if (!refresh.Ativo) return null;
+            if (!sessao.Ativa) return null;
 
-            // Rotacao: cada uso queima o token.
-            refresh.RevogadoEm = DateTime.UtcNow;
+            // Rotacao: cada uso queima o token da sessao.
+            sessao.EncerradaEm = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            return refresh.Usuario;
+            return sessao.Usuario;
         }
 
-        public async Task RevogarAsync(string tokenHash)
+        public async Task EncerrarAsync(string tokenHash)
         {
-            var refresh = await _db.RefreshTokens
-                .FirstOrDefaultAsync(r => r.TokenHash == tokenHash && r.RevogadoEm == null);
+            var sessao = await _db.Sessoes
+                .FirstOrDefaultAsync(x => x.TokenHash == tokenHash && x.EncerradaEm == null);
 
-            if (refresh is null) return;
+            if (sessao is null) return;
 
-            refresh.RevogadoEm = DateTime.UtcNow;
+            sessao.EncerradaEm = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
 
-        public async Task RevogarTodosDoUsuarioAsync(int usuarioId)
+        public async Task EncerrarTodasDoUsuarioAsync(int usuarioId)
         {
-            await _db.RefreshTokens
-                .Where(r => r.UsuarioId == usuarioId && r.RevogadoEm == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.RevogadoEm, DateTime.UtcNow));
+            await _db.Sessoes
+                .Where(x => x.UsuarioId == usuarioId && x.EncerradaEm == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.EncerradaEm, DateTime.UtcNow));
         }
     }
 }

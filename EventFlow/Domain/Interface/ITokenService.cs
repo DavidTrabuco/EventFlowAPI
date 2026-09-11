@@ -5,7 +5,7 @@ namespace EventFlow.Domain.Interface
     public interface ITokenService
     {
         string GerarToken(Usuario usuario);
-        string GerarRefreshToken();
-        string HashRefreshToken(string refreshToken);
+        string GerarTokenSessao();
+        string HashTokenSessao(string tokenSessao);
     }
 }

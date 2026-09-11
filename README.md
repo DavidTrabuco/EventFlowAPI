@@ -1,6 +1,6 @@
 # EventFlow
 
-API de gestão de eventos e ingressos em ASP.NET Core 8, com autenticação JWT em cookie `HttpOnly`, refresh token revogável e autorização por perfil.
+API de gestão de eventos e ingressos em ASP.NET Core 8, com autenticação JWT em cookie `HttpOnly`, sessão revogável e autorização por perfil.
 
 Projeto de estudo — o passo a passo completo da construção está no [blueprint](https://claude.ai/code/artifact/bc81f614-f44b-4450-839e-233d96922e20).
 
@@ -149,7 +149,7 @@ O roteiro que mostra a autorização funcionando:
 |---|---|---|
 | POST | `/registrar` | qualquer um |
 | POST | `/login` | qualquer um |
-| POST | `/refresh` | quem tem refresh token válido |
+| POST | `/renovar` | quem tem sessão válida |
 | POST | `/logout` | autenticado |
 
 ### Eventos — `/api/evento`
@@ -194,7 +194,7 @@ Quem cuida disso é o [`DbSeeder`](EventFlow/Infrastructure/Data/DbSeeder.cs), c
 
 Isso também resolve o `git pull`: quando alguém adiciona uma migration, o schema se atualiza sozinho na próxima execução.
 
-> **Por que não commitar o `.db`:** é binário, então o Git não consegue mesclar — dois commits no mesmo arquivo viram conflito insolúvel. Ele também muda a cada execução (a tabela `RefreshTokens` cresce a cada login), deixando o `git status` sempre sujo. E o SQLite mantém escritas pendentes num arquivo `-wal` separado: commitar só o `.db` pode levar um banco **sem os dados** para quem clonar.
+> **Por que não commitar o `.db`:** é binário, então o Git não consegue mesclar — dois commits no mesmo arquivo viram conflito insolúvel. Ele também muda a cada execução (a tabela `Sessoes` cresce a cada login), deixando o `git status` sempre sujo. E o SQLite mantém escritas pendentes num arquivo `-wal` separado: commitar só o `.db` pode levar um banco **sem os dados** para quem clonar.
 
 ### Zerar e recomeçar
 
@@ -219,7 +219,7 @@ Feche a aplicação antes de escrever pelo DBeaver — o SQLite aceita vários l
 ```
 EventFlow/
 ├─ Domain/                 # o coração — não depende de ninguém
-│  ├─ Entity/              # Usuario, Evento, Participante, Ingresso, RefreshToken
+│  ├─ Entity/              # Usuario, Evento, Participante, Ingresso, Sessao
 │  ├─ Enums/               # PerfilUsuario, StatusIngresso
 │  └─ Interface/           # contratos dos serviços
 ├─ Application/            # as regras de negócio
@@ -239,18 +239,20 @@ As dependências apontam para dentro: `Api` → `Application` → `Domain`. Por 
 
 Dois tokens, com papéis diferentes:
 
-| | Access token | Refresh token |
+| | Cookie `acesso` | Cookie `sessao` |
 |---|---|---|
 | O que é | JWT assinado | string aleatória de 32 bytes |
 | Dura | 15 minutos | 7 dias |
 | Vai em | toda requisição | só em `/api/auth` |
 | Guardado no banco | não | sim, como hash |
 
-O access token é verificado só pela assinatura — o banco nem é consultado. Quando ele expira, o cliente chama `/api/auth/refresh`, que confere a linha na tabela `RefreshTokens` e emite um par novo.
+O cookie `acesso` é verificado só pela assinatura — o banco nem é consultado. Quando ele expira, o cliente chama `/api/auth/renovar`, que confere a linha na tabela `Sessoes` e emite um par novo.
 
 É essa tabela que torna a **revogação** possível: o `logout` marca a linha como revogada, e a sessão acaba de verdade. Só com JWT puro isso seria impossível — não haveria onde registrar que um token deixou de valer.
 
-Cada renovação queima o refresh usado (**rotação**). Se um token já revogado reaparecer, o sistema entende que existe uma cópia em circulação e **derruba todas as sessões** daquele usuário.
+Cada renovação queima o token de sessão usado (**rotação**). Se um token já encerrado reaparecer, o sistema entende que existe uma cópia em circulação e **derruba todas as sessões** daquele usuário.
+
+> Nos padrões (OAuth 2.0) e na maioria dos tutoriais, o que aqui se chama **sessão** é chamado de *refresh token*. O nome foi trocado por clareza: `acesso` e `sessao` não se confundem entre si como *access token* e *refresh token*.
 
 ---
 
