@@ -19,6 +19,8 @@ var jwtKey = builder.Configuration["Jwt:Key"]
 builder.Services.AddDbContext<EventFlowDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddMemoryCache();
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

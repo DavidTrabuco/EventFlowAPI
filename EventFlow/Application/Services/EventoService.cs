@@ -4,18 +4,24 @@ using EventFlow.Domain.Interface;
 using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EventFlow.Application.Services
 {
     public class EventoService : IEventoService
     {
-        private readonly IEventoRepository _eventos;      // leitura (Dapper)
-        private readonly EventFlowDbContext _context;     // escrita (EF)
+        private readonly IEventoRepository _eventos;      
+        private readonly EventFlowDbContext _context;    
 
-        public EventoService(IEventoRepository eventos, EventFlowDbContext context)
+        private readonly IMemoryCache _cache; 
+
+        
+
+        public EventoService(IEventoRepository eventos, EventFlowDbContext context, IMemoryCache cache)
         {
             _eventos = eventos;
             _context = context;
+            _cache = cache;
         }
 
         public async Task<Evento> CriarEventoAsync(CriarEventoRequest request, int organizadorId)
@@ -25,7 +31,7 @@ namespace EventFlow.Application.Services
                 ? request.DataHora
                 : request.DataHora.ToUniversalTime();
 
-            // RN02: data estritamente no futuro.
+            
             if (dataHoraUtc <= DateTime.UtcNow)
             {
                 throw new ArgumentException("RN02: a data do evento deve ser no futuro.");
@@ -41,7 +47,7 @@ namespace EventFlow.Application.Services
                 PrecoIngresso = request.PrecoIngresso,
                 IngressosVendidos = 0,
                 Ativo = true,
-                OrganizadorId = organizadorId   // vem do token, nunca do corpo
+                OrganizadorId = organizadorId   
             };
 
             _context.Eventos.Add(evento);
@@ -50,18 +56,50 @@ namespace EventFlow.Application.Services
             return evento;
         }
 
-        // Leitura pura: vai direto para JSON, ninguem altera o resultado.
-        public Task<IEnumerable<Evento>> ListarEventosAsync() => _eventos.ListarAsync();
+        
+        public async Task<IEnumerable<Evento>> ListarEventosAsync()
+        {
 
-        public Task<Evento?> ObterPorIdAsync(int id) => _eventos.ObterPorIdAsync(id);
+            if (_cache.TryGetValue("Eventos", out IEnumerable<Evento>? eventosMemoryCache))
+            {
+                return eventosMemoryCache!;
+            }
+            var evento = await _eventos.ListarAsync();
 
+            if (evento != null)
+            {
+                _cache.Set("Eventos", evento, TimeSpan.FromMinutes(10));
+            }
+            return evento!;
+        }
+
+
+
+
+        public async Task<Evento?> ObterPorIdAsync(int id)
+        {
+
+            
+            if (_cache.TryGetValue($"Evento_{id}", out Evento? EventoMemoryCache))
+            {
+                return EventoMemoryCache;
+            }
+            var evento = await _eventos.ObterPorIdAsync(id);
+            if (evento != null)
+            {
+                _cache.Set($"Evento_{id}", evento, TimeSpan.FromMinutes(10));
+            }
+
+            return evento;
+        }
        
+
+
         public async Task<bool> InativarEventoAsync(int id, int organizadorId)
         {
             var evento = await _context.Eventos.FindAsync(id);
 
-            // Evento de outro organizador e tratado como inexistente: dizer
-            // "nao e seu" confirmaria que o id existe, e os ids sao sequenciais.
+            
             if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
@@ -81,8 +119,7 @@ namespace EventFlow.Application.Services
         {
             var evento = await _context.Eventos.FindAsync(id);
 
-            // Evento de outro organizador e tratado como inexistente: dizer
-            // "nao e seu" confirmaria que o id existe, e os ids sao sequenciais.
+           
             if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
@@ -92,13 +129,13 @@ namespace EventFlow.Application.Services
                 ? request.DataHora
                 : request.DataHora.ToUniversalTime();
 
-            // RN02: data estritamente no futuro.
+            
             if (dataHoraUtc <= DateTime.UtcNow)
             {
                 throw new ArgumentException("RN02: a data do evento deve ser no futuro.");
             }
 
-            // A capacidade não pode ficar abaixo do que já foi vendido.
+          
             if (request.CapacidadeMaxima < evento.IngressosVendidos)
             {
                 throw new InvalidOperationException(

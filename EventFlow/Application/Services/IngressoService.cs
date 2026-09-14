@@ -5,6 +5,7 @@ using EventFlow.Domain.Interface;
 using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EventFlow.Application.Services
 {
@@ -12,17 +13,18 @@ namespace EventFlow.Application.Services
     {
         private const int LimiteIngressosPorParticipante = 5;
 
-        private readonly IIngressoRepository _ingressos;    // leitura (Dapper)
+        private readonly IIngressoRepository _ingressos;   
         private readonly IParticipanteRepository _participantes;
-        private readonly EventFlowDbContext _context;       // escrita (EF)
+        private readonly EventFlowDbContext _context; 
+        
+        private readonly IMemoryCache _cache;
 
-        public IngressoService(IIngressoRepository ingressos,
-                               IParticipanteRepository participantes,
-                               EventFlowDbContext context)
+        public IngressoService(IIngressoRepository ingressos,IParticipanteRepository participantes,EventFlowDbContext context, IMemoryCache cache)
         {
             _ingressos = ingressos;
             _participantes = participantes;
             _context = context;
+            _cache = cache;
         }
 
         public async Task<Ingresso> ComprarIngressoAsync(ComprarIngressoRequest request, int participanteId)
@@ -40,19 +42,18 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException("Participante não encontrado.");
             }
 
-            // RN06 antes de RN01: se o evento está inativo, essa é a informação útil.
+           
             if (!evento.Ativo)
             {
                 throw new InvalidOperationException("RN06: evento inativo, compras bloqueadas.");
             }
 
-            // RN01
+           
             if (evento.IngressosVendidos >= evento.CapacidadeMaxima)
             {
                 throw new InvalidOperationException("RN01: capacidade máxima do evento atingida.");
             }
 
-            // RN03: apenas ingressos ATIVOS contam. Cancelado libera a vaga do limite.
             var ativosDoParticipante =
                 await _ingressos.ContarAtivosAsync(request.EventoId, participanteId);
 
@@ -67,15 +68,17 @@ namespace EventFlow.Application.Services
                 EventoId = request.EventoId,
                 ParticipanteId = participanteId,
                 DataHoraCompra = DateTime.UtcNow,
-                ValorPago = evento.PrecoIngresso,                    // preço vem do evento
-                CodigoValidacao = await GerarCodigoUnicoAsync(),     // RN05
+                ValorPago = evento.PrecoIngresso,                 
+                CodigoValidacao = await GerarCodigoUnicoAsync(),     
                 Status = StatusIngresso.Ativo
             };
 
             _context.Ingressos.Add(ingresso);
-            evento.IngressosVendidos++;   // evento está rastreado: SaveChanges persiste os dois
+            evento.IngressosVendidos++;
 
             await _context.SaveChangesAsync();
+
+            _cache.Remove($"ingressos_participante_{participanteId}");
 
             return ingresso;
         }
@@ -91,8 +94,7 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException("Ingresso não encontrado.");
             }
 
-            // Um ingresso de outro participante e tratado como inexistente:
-            // responder "nao e seu" confirmaria que o id existe.
+           
             if (ingresso.ParticipanteId != participanteId)
             {
                 throw new KeyNotFoundException("Ingresso não encontrado.");
@@ -108,7 +110,7 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException("Evento do ingresso não encontrado.");
             }
 
-            // RN04: 24h de antecedência. Ambos os lados em UTC (ver EventoService).
+       
             if ((ingresso.Evento.DataHora - DateTime.UtcNow).TotalHours < 24)
             {
                 throw new InvalidOperationException(
@@ -116,13 +118,15 @@ namespace EventFlow.Application.Services
             }
 
             ingresso.Status = StatusIngresso.Cancelado;
-            ingresso.Evento.IngressosVendidos--;   // devolve a vaga
+            ingresso.Evento.IngressosVendidos--;
 
             await _context.SaveChangesAsync();
+
+            _cache.Remove($"ingressos_participante_{participanteId}");
             return true;
         }
 
-        // RN05: check-in marca o ingresso como utilizado.
+     
         public async Task<bool> ValidarCheckInAsync(string codigoValidacao)
         {
             var ingresso = await _context.Ingressos
@@ -140,14 +144,32 @@ namespace EventFlow.Application.Services
 
             ingresso.Status = StatusIngresso.Utilizado;
             await _context.SaveChangesAsync();
+            _cache.Remove($"ingressos_participante_{ingresso.ParticipanteId}");
             return true;
         }
 
-        // RF04: histórico do participante.
-        public Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId) =>
-            _ingressos.ListarPorParticipanteAsync(participanteId);
 
-        // RN05: código de 8 caracteres, único.
+        public async Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId)
+        {
+            if (_cache.TryGetValue($"ingressos_participante_{participanteId}", out IEnumerable<Ingresso>? ingressos))
+            {
+                return ingressos!;
+            }
+
+            var participanteExiste = await _participantes.ObterPorIdAsync(participanteId) is not null;
+
+            var ingressosList = await _ingressos.ListarPorParticipanteAsync(participanteId);
+
+            if (participanteExiste)
+            {
+                _cache.Set($"ingressos_participante_{participanteId}", ingressosList, TimeSpan.FromMinutes(5));
+            }
+
+            return ingressosList;
+        }
+
+
+
         private async Task<string> GerarCodigoUnicoAsync()
         {
             string codigo;
