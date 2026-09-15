@@ -78,7 +78,7 @@ namespace EventFlow.Api.Controllers
             var usuario = await _authService.ObterOuCriarViaGoogleAsync(googleId, email, nome ?? email);
 
             await AbrirSessaoAsync(usuario);
-            return Ok(new { mensagem = "Login com Google efetuado" });
+            return Redirect("/swagger");
         }
 
         // Sem [Authorize] de proposito: e chamado justamente quando o cookie
