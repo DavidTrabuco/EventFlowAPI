@@ -2,31 +2,31 @@
 
 using EventFlow.Domain.Interface;
 using EventFlow.Domain.Entity;
-
 using Microsoft.IdentityModel.Tokens;
-
+using EventFlow.Domain.Options;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Options;
 
 namespace EventFlow.Application.Services
 {
-    public class TokenService :ITokenService
+    public class TokenService : ITokenService
     {
 
-        private readonly IConfiguration _configuration;
+        private readonly JwtOptions _jwtOptions;
 
-        public TokenService(IConfiguration configuration)
+        public TokenService(IConfiguration configuration, IOptions<JwtOptions> jwtOptions)
         {
-            _configuration = configuration;
+            _jwtOptions = jwtOptions.Value;
         }
 
         public string GerarToken(Usuario usuario)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(
-                _configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key is not configured."));
+                _jwtOptions.Key ?? throw new InvalidOperationException("JWT Key is not configured."));
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
@@ -37,8 +37,8 @@ namespace EventFlow.Application.Services
             new Claim(ClaimTypes.Email, usuario.Email),
             new Claim(ClaimTypes.Role, usuario.Perfil.ToString())
         ]),
-                Issuer = _configuration["Jwt:Issuer"],
-                Audience = _configuration["Jwt:Audience"],
+                Issuer = _jwtOptions.Issuer,
+                Audience = _jwtOptions.Audience,
                 Expires = DateTime.UtcNow.AddMinutes(15),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };

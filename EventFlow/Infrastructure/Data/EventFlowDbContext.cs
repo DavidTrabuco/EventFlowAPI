@@ -26,17 +26,6 @@ namespace EventFlow.Infrastructure.Data
                 entity.Property(e => e.Local).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.PrecoIngresso).HasPrecision(18, 2);
 
-                // O dono do evento. Sem isso, qualquer Organizador edita o
-                // evento de qualquer outro — e como o cadastro permite se
-                // declarar Organizador, isso significa qualquer pessoa.
-                //
-                // Restrict, nao Cascade: apagar um organizador NAO pode apagar
-                // os eventos dele, porque ha ingressos vendidos apontando para
-                // eles. O banco recusa a exclusao ate alguem decidir o que
-                // fazer com os eventos.
-                //
-                // Nao precisa de HasIndex: o EF cria o indice sozinho para
-                // toda chave estrangeira.
                 entity.HasOne<Usuario>()
                       .WithMany()
                       .HasForeignKey(e => e.OrganizadorId)
@@ -80,12 +69,16 @@ namespace EventFlow.Infrastructure.Data
                 entity.HasKey(u => u.Id);
                 entity.Property(u => u.Nome).IsRequired().HasMaxLength(150);
                 entity.Property(u => u.Email).IsRequired().HasMaxLength(150);
-                entity.Property(u => u.SenhaHash).IsRequired();
+                entity.Property(u => u.GoogleId).HasMaxLength(255);
                 entity.Property(u => u.Perfil)
                       .IsRequired()
                       .HasConversion<string>()
                       .HasMaxLength(50);
                 entity.HasIndex(u => u.Email).IsUnique();
+
+                // Unico, mas SQLite permite varios NULLs num indice unico
+                // (nao conflita entre si) - contas locais sem GoogleId ficam de boa.
+                entity.HasIndex(u => u.GoogleId).IsUnique();
             });
 
             modelBuilder.Entity<Sessao>(entity =>

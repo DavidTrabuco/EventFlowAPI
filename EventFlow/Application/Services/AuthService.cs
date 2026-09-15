@@ -11,8 +11,8 @@ namespace EventFlow.Application.Services
     {
         private const int DiasValidadeSessao = 7;
 
-        private readonly IUsuarioRepository _usuarios;   // leitura (Dapper)
-        private readonly EventFlowDbContext _db;         // escrita (EF)
+        private readonly IUsuarioRepository _usuarios;  
+        private readonly EventFlowDbContext _db;         
 
         public AuthService(IUsuarioRepository usuarios, EventFlowDbContext db)
         {
@@ -25,10 +25,14 @@ namespace EventFlow.Application.Services
             var usuario = await _usuarios.ObterPorEmailAsync(email);
             if (usuario == null) return null;
 
+            // Conta que so existe via Google nao tem SenhaHash: nao ha
+            // como autenticar por senha local, entao nega direto.
+            if (usuario.SenhaHash is null) return null;
+
             bool senhaValida = BCrypt.Net.BCrypt.Verify(senha, usuario.SenhaHash);
             return senhaValida ? usuario : null;
         }
-        
+
         public async Task<bool> RegistrarAsync(RegistrarRequest request)
         {
             // A consulta previa da a resposta rapida...
@@ -57,6 +61,36 @@ namespace EventFlow.Application.Services
                 return false;
             }
 
+        }
+
+        public async Task<Usuario> ObterOuCriarViaGoogleAsync(string googleId, string email, string nome)
+        {
+            var usuarioPorGoogleId = await _usuarios.ObterPorGoogleIdAsync(googleId);
+            if (usuarioPorGoogleId is not null)
+                return usuarioPorGoogleId;
+
+            // Ja existe conta local com esse email (cadastrada com senha)?
+            // Vincula a conta Google a ela em vez de criar duplicada.
+            var usuarioPorEmail = await _usuarios.ObterPorEmailAsync(email);
+            if (usuarioPorEmail is not null)
+            {
+                var usuarioParaVincular = await _db.Usuarios.FirstAsync(u => u.Id == usuarioPorEmail.Id);
+                usuarioParaVincular.GoogleId = googleId;
+                await _db.SaveChangesAsync();
+                return usuarioParaVincular;
+            }
+
+            var novoUsuario = new Usuario
+            {
+                Nome = nome,
+                Email = email,
+                GoogleId = googleId,
+                SenhaHash = null
+            };
+
+            _db.Usuarios.Add(novoUsuario);
+            await _db.SaveChangesAsync();
+            return novoUsuario;
         }
 
         public async Task<Sessao> CriarSessaoAsync(int usuarioId, string tokenHash)

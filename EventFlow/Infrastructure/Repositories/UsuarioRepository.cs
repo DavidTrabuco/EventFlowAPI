@@ -24,5 +24,9 @@ namespace EventFlow.Infrastructure.Repositories
         public Task<bool> EmailJaExisteAsync(string email) =>
             Conexao.ExecuteScalarAsync<bool>(
                 "SELECT EXISTS (SELECT 1 FROM Usuarios WHERE Email = @email)", new { email });
+
+        public Task<Usuario?> ObterPorGoogleIdAsync(string googleId) =>
+            Conexao.QueryFirstOrDefaultAsync<Usuario>(
+                "SELECT * FROM Usuarios WHERE GoogleId = @googleId", new { googleId });
     }
 }

@@ -1,5 +1,8 @@
+using System.Security.Claims;
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Interface;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -30,6 +33,7 @@ namespace EventFlow.Api.Controllers
 
             await AbrirSessaoAsync(usuario);
             return Ok(new { mensagem = "Login efetuado" });
+
         }
 
         [HttpPost("registrar")]
@@ -40,6 +44,41 @@ namespace EventFlow.Api.Controllers
                 return Conflict(new { mensagem = "Email já cadastrado" });
 
             return Ok(new { mensagem = "Usuário registrado com sucesso." });
+        }
+
+       
+        [HttpGet("google")]
+        public IActionResult LoginGoogle()
+        {
+            var props = new AuthenticationProperties
+            {
+                RedirectUri = Url.Action(nameof(GoogleCallback))
+            };
+            return Challenge(props, GoogleDefaults.AuthenticationScheme);
+        }
+
+       
+        [HttpGet("google/callback")]
+        public async Task<IActionResult> GoogleCallback()
+        {
+            var result = await HttpContext.AuthenticateAsync("External");
+            if (!result.Succeeded || result.Principal is null)
+                return Unauthorized(new { mensagem = "Falha na autenticação com Google." });
+
+            var googleId = result.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var email = result.Principal.FindFirstValue(ClaimTypes.Email);
+            var nome = result.Principal.FindFirstValue(ClaimTypes.Name);
+
+           
+            await HttpContext.SignOutAsync("External");
+
+            if (googleId is null || email is null)
+                return Unauthorized(new { mensagem = "Google não retornou os dados esperados." });
+
+            var usuario = await _authService.ObterOuCriarViaGoogleAsync(googleId, email, nome ?? email);
+
+            await AbrirSessaoAsync(usuario);
+            return Ok(new { mensagem = "Login com Google efetuado" });
         }
 
         // Sem [Authorize] de proposito: e chamado justamente quando o cookie
