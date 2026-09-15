@@ -1,5 +1,7 @@
 # EventFlow
 
+**Aqui é um projeto dedicado ao meu estudo mesmo , aplicando todos os conhecimentos que o backend me proporciona e evoluindo cada vez mais!!**
+
 API de gestão de eventos e ingressos em ASP.NET Core 8, com autenticação JWT em cookie `HttpOnly`, sessão revogável e autorização por perfil.
 
 Projeto de estudo — o passo a passo completo da construção está no [blueprint](https://claude.ai/code/artifact/bc81f614-f44b-4450-839e-233d96922e20).
