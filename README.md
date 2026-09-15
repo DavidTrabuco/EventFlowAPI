@@ -74,7 +74,37 @@ dotnet user-secrets list
 >
 > Em produção, use a variável de ambiente `Jwt__Key` (dois underscores no lugar dos dois pontos) ou um cofre de segredos.
 
-### 3. Rodar
+### 3. Configurar o login com Google (opcional)
+
+**Diferente da chave do passo 2, isso não pode ser gerado localmente.** `ClientId` e `ClientSecret` são credenciais emitidas pelo Google, atreladas a um projeto cadastrado no Google Cloud — não existe comando que "gere" isso na sua máquina, é preciso ir ao site.
+
+1. Acesse [console.cloud.google.com](https://console.cloud.google.com) e crie um projeto (ou use um existente)
+2. Vá em **Google Auth Platform → Público-alvo**, escolha **Externo**, preencha nome do app e email de suporte, e adicione seu email como **usuário de teste** (o app fica em modo de teste, só quem está nessa lista consegue logar)
+3. Vá em **Clientes → Criar um cliente OAuth**, tipo **Aplicativo da Web**
+4. Em **URIs de redirecionamento autorizados**, adicione:
+   ```
+   https://localhost:7076/api/auth/google/signin-callback
+   ```
+   Precisa bater **exatamente** com o `CallbackPath` configurado no `Program.cs` — qualquer diferença de barra ou porta e o Google recusa o login
+5. Copie o **ID do cliente** e a **Chave secreta do cliente** gerados
+
+O `ClientId` não é segredo — vai no `appsettings.json`:
+```json
+"Authentication": {
+  "Google": {
+    "ClientId": "SEU-CLIENT-ID.apps.googleusercontent.com"
+  }
+}
+```
+
+O `ClientSecret` é segredo — mesma regra da chave JWT, vai pro User Secrets:
+```bash
+dotnet user-secrets set "Authentication:Google:ClientSecret" "SEU-CLIENT-SECRET"
+```
+
+> Sem isso configurado, a aplicação recusa subir: `GoogleAuthOptions` é validado no arranque (`ValidateOnStart`), igual ao `JwtOptions`. Se você só quer testar o login local (email/senha), pode pular este passo — mas nesse caso a aplicação ainda vai exigir esses dois valores presentes (mesmo vazios não passa na validação `[Required]`). Deixe o cadastro no Google feito antes de rodar.
+
+### 4. Rodar
 
 ```bash
 cd EventFlow
@@ -149,6 +179,8 @@ O roteiro que mostra a autorização funcionando:
 |---|---|---|
 | POST | `/registrar` | qualquer um |
 | POST | `/login` | qualquer um |
+| GET | `/google` | qualquer um (redireciona pro login do Google) |
+| GET | `/google/callback` | qualquer um (chamado pelo Google depois do consentimento) |
 | POST | `/renovar` | quem tem sessão válida |
 | POST | `/logout` | autenticado |
 
@@ -261,6 +293,8 @@ Cada renovação queima o token de sessão usado (**rotação**). Se um token j�
 | Sintoma | Causa | Correção |
 |---|---|---|
 | `InvalidOperationException: Jwt:Key não configurada` | pulou o passo 2 | configure os User Secrets |
+| App não sobe, reclama de `Authentication:Google:ClientSecret` | pulou o passo 3 | configure `ClientId`/`ClientSecret` (veja passo 3) |
+| `AuthenticationFailureException: The oauth state was missing or invalid` | redirect URI cadastrada no Google diferente do `CallbackPath`, ou app reiniciada no meio do login | confira se a URI no Google Console bate exatamente com `/api/auth/google/signin-callback`; refaça o login sem reiniciar o servidor no meio |
 | Login dá 200 mas tudo depois dá 401 | rodando em `http` | use o perfil **https** — `Secure = true` faz o navegador descartar o cookie em HTTP |
 | "Sua conexão não é particular" no navegador | certificado de dev | `dotnet dev-certs https --trust` |
 | `The process cannot access the file EventFlow.exe` | execução anterior ainda viva | `taskkill /IM EventFlow.exe /F` |
