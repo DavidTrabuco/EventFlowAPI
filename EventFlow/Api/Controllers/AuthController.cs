@@ -111,8 +111,7 @@ namespace EventFlow.Api.Controllers
             return Ok(new { mensagem = "Logout efetuado" });
         }
 
-        // Emite o par de cookies e registra a sessao no banco. E essa linha
-        // no banco que torna possivel encerrar a sessao antes da hora.
+        //Junta aqui a logica de abrir sessao, gerar token de acesso e token de sessao, e setar os cookies , ISSO É MARAVILHOSO RS 
         private async Task AbrirSessaoAsync(Domain.Entity.Usuario usuario)
         {
             var acesso = _tokenService.GerarToken(usuario);
@@ -128,9 +127,7 @@ namespace EventFlow.Api.Controllers
                 OpcoesCookie(DateTimeOffset.UtcNow.AddDays(DiasSessao)));
         }
 
-        // HttpOnly: o JavaScript nao le  -> barra XSS
-        // Secure: so trafega em HTTPS
-        // SameSite=Strict: outro site nao dispara requisicao autenticada -> freia CSRF
+        
         private static CookieOptions OpcoesCookie(DateTimeOffset? expira) => new()
         {
             HttpOnly = true,
