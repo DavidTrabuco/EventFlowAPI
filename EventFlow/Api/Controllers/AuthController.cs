@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using EventFlow.Application.DTOs.Request;
+using EventFlow.Application.Services;
 using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+
 
 namespace EventFlow.Api.Controllers
 {
@@ -17,23 +19,26 @@ namespace EventFlow.Api.Controllers
 
         private readonly IAuthService _authService;
         private readonly ITokenService _tokenService;
+       
 
         public AuthController(IAuthService authService, ITokenService tokenService)
         {
             _authService = authService;
             _tokenService = tokenService;
         }
+
         [EnableRateLimiting("login")]
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
             var usuario = await _authService.AutenticarAsync(request.Email, request.Senha);
             if (usuario is null)
+            {
                 return Unauthorized(new { mensagem = "Email ou senha inválidos." });
+            }
 
             await AbrirSessaoAsync(usuario);
             return Ok(new { mensagem = "Login efetuado" });
-
         }
 
         [HttpPost("registrar")]
@@ -41,12 +46,13 @@ namespace EventFlow.Api.Controllers
         {
             var sucesso = await _authService.RegistrarAsync(request);
             if (!sucesso)
+            {
                 return Conflict(new { mensagem = "Email já cadastrado" });
+            }
 
             return Ok(new { mensagem = "Usuário registrado com sucesso." });
         }
 
-       
         [HttpGet("google")]
         public IActionResult LoginGoogle()
         {
@@ -57,23 +63,25 @@ namespace EventFlow.Api.Controllers
             return Challenge(props, GoogleDefaults.AuthenticationScheme);
         }
 
-       
         [HttpGet("google/callback")]
         public async Task<IActionResult> GoogleCallback()
         {
             var result = await HttpContext.AuthenticateAsync("External");
             if (!result.Succeeded || result.Principal is null)
+            {
                 return Unauthorized(new { mensagem = "Falha na autenticação com Google." });
+            }
 
             var googleId = result.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
             var email = result.Principal.FindFirstValue(ClaimTypes.Email);
             var nome = result.Principal.FindFirstValue(ClaimTypes.Name);
 
-           
             await HttpContext.SignOutAsync("External");
 
             if (googleId is null || email is null)
+            {
                 return Unauthorized(new { mensagem = "Google não retornou os dados esperados." });
+            }
 
             var usuario = await _authService.ObterOuCriarViaGoogleAsync(googleId, email, nome ?? email);
 
@@ -87,13 +95,17 @@ namespace EventFlow.Api.Controllers
         public async Task<IActionResult> Renovar()
         {
             if (!Request.Cookies.TryGetValue("sessao", out var tokenSessao))
+            {
                 return Unauthorized(new { mensagem = "Sessão expirada." });
+            }
 
             var usuario = await _authService.ValidarSessaoAsync(
                 _tokenService.HashTokenSessao(tokenSessao));
 
             if (usuario is null)
+            {
                 return Unauthorized(new { mensagem = "Sessão expirada." });
+            }
 
             await AbrirSessaoAsync(usuario);
             return Ok(new { mensagem = "Sessão renovada" });
@@ -103,7 +115,9 @@ namespace EventFlow.Api.Controllers
         public async Task<IActionResult> Logout()
         {
             if (Request.Cookies.TryGetValue("sessao", out var tokenSessao))
+            {
                 await _authService.EncerrarAsync(_tokenService.HashTokenSessao(tokenSessao));
+            }
 
             Response.Cookies.Delete("acesso", OpcoesCookie(null));
             Response.Cookies.Delete("sessao", OpcoesCookie(null));
@@ -111,7 +125,7 @@ namespace EventFlow.Api.Controllers
             return Ok(new { mensagem = "Logout efetuado" });
         }
 
-        //Junta aqui a logica de abrir sessao, gerar token de acesso e token de sessao, e setar os cookies , ISSO É MARAVILHOSO RS 
+        // Junta aqui a logica de abrir sessao, gerar token de acesso e token de sessao, e setar os cookies
         private async Task AbrirSessaoAsync(Domain.Entity.Usuario usuario)
         {
             var acesso = _tokenService.GerarToken(usuario);
@@ -127,7 +141,6 @@ namespace EventFlow.Api.Controllers
                 OpcoesCookie(DateTimeOffset.UtcNow.AddDays(DiasSessao)));
         }
 
-        
         private static CookieOptions OpcoesCookie(DateTimeOffset? expira) => new()
         {
             HttpOnly = true,

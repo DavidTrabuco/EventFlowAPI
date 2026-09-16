@@ -11,33 +11,52 @@ namespace EventFlow.Application.Services
     {
         private const int DiasValidadeSessao = 7;
 
-        private readonly IUsuarioRepository _usuarios;  
-        private readonly EventFlowDbContext _db;         
+        private readonly IUsuarioRepository _usuarios;
+        private readonly EventFlowDbContext _db;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(IUsuarioRepository usuarios, EventFlowDbContext db)
+        public AuthService(
+            IUsuarioRepository usuarios,
+            EventFlowDbContext db,
+            ILogger<AuthService> logger)
         {
             _usuarios = usuarios;
             _db = db;
+            _logger = logger;
         }
 
         public async Task<Usuario?> AutenticarAsync(string email, string senha)
         {
             var usuario = await _usuarios.ObterPorEmailAsync(email);
-            if (usuario == null) return null;
+            if (usuario == null)
+            {
+                _logger.LogWarning("Tentativa de login com e-mail não cadastrado: {Email}", email);
+                return null;
+            }
 
-            // Conta que so existe via Google nao tem SenhaHash: nao ha
-            // como autenticar por senha local, entao nega direto.
-            if (usuario.SenhaHash is null) return null;
+            if (usuario.SenhaHash is null)
+            {
+                _logger.LogWarning("Tentativa de login por senha em conta vinculada ao Google: {Email}", email);
+                return null;
+            }
 
             bool senhaValida = BCrypt.Net.BCrypt.Verify(senha, usuario.SenhaHash);
+
+            if (senhaValida)
+                _logger.LogInformation("Autenticação bem-sucedida para o usuário {UserId}", usuario.Id);
+            else
+                _logger.LogWarning("Senha incorreta para o e-mail {Email}", email);
+
             return senhaValida ? usuario : null;
         }
 
         public async Task<bool> RegistrarAsync(RegistrarRequest request)
         {
-            // A consulta previa da a resposta rapida...
             if (await _usuarios.EmailJaExisteAsync(request.Email))
+            {
+                _logger.LogInformation("Tentativa de registro com e-mail já existente: {Email}", request.Email);
                 return false;
+            }
 
             var usuario = new Usuario
             {
@@ -47,20 +66,18 @@ namespace EventFlow.Application.Services
                 Perfil = request.Perfil
             };
 
-
             try
             {
                 _db.Usuarios.Add(usuario);
                 await _db.SaveChangesAsync();
+                _logger.LogInformation("Novo usuário registrado: {UserId} ({Email})", usuario.Id, usuario.Email);
                 return true;
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
-                // ...e o indice unico e a rede de seguranca, para quando duas
-                // requisicoes com o mesmo email passarem juntas pela consulta.
+                _logger.LogError(ex, "Falha ao registrar usuário com e-mail {Email} (provável corrida de concorrência)", request.Email);
                 return false;
             }
-
         }
 
         public async Task<Usuario> ObterOuCriarViaGoogleAsync(string googleId, string email, string nome)
@@ -69,14 +86,13 @@ namespace EventFlow.Application.Services
             if (usuarioPorGoogleId is not null)
                 return usuarioPorGoogleId;
 
-            // Ja existe conta local com esse email (cadastrada com senha)?
-            // Vincula a conta Google a ela em vez de criar duplicada.
             var usuarioPorEmail = await _usuarios.ObterPorEmailAsync(email);
             if (usuarioPorEmail is not null)
             {
                 var usuarioParaVincular = await _db.Usuarios.FirstAsync(u => u.Id == usuarioPorEmail.Id);
                 usuarioParaVincular.GoogleId = googleId;
                 await _db.SaveChangesAsync();
+                _logger.LogInformation("Conta local vinculada ao Google: {UserId} ({Email})", usuarioParaVincular.Id, email);
                 return usuarioParaVincular;
             }
 
@@ -90,6 +106,7 @@ namespace EventFlow.Application.Services
 
             _db.Usuarios.Add(novoUsuario);
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Novo usuário criado via Google: {UserId} ({Email})", novoUsuario.Id, email);
             return novoUsuario;
         }
 
@@ -105,6 +122,7 @@ namespace EventFlow.Application.Services
 
             _db.Sessoes.Add(sessao);
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Sessão criada para o usuário {UserId}", usuarioId);
             return sessao;
         }
 
@@ -114,19 +132,25 @@ namespace EventFlow.Application.Services
                 .Include(x => x.Usuario)
                 .FirstOrDefaultAsync(x => x.TokenHash == tokenHash);
 
-            if (sessao is null) return null;
+            if (sessao is null)
+            {
+                _logger.LogWarning("Token de sessão não encontrado");
+                return null;
+            }
 
-            // Um token ja encerrado sendo reapresentado significa que existe
-            // uma copia em circulacao. Na duvida, derruba tudo do usuario.
             if (sessao.EncerradaEm is not null)
             {
+                _logger.LogWarning("Token de sessão já encerrado reapresentado: encerrando todas as sessões do usuário {UserId}", sessao.UsuarioId);
                 await EncerrarTodasDoUsuarioAsync(sessao.UsuarioId);
                 return null;
             }
 
-            if (!sessao.Ativa) return null;
+            if (!sessao.Ativa)
+            {
+                _logger.LogWarning("Sessão inativa/expirada para o usuário {UserId}", sessao.UsuarioId);
+                return null;
+            }
 
-            // Rotacao: cada uso queima o token da sessao.
             sessao.EncerradaEm = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
@@ -142,6 +166,7 @@ namespace EventFlow.Application.Services
 
             sessao.EncerradaEm = DateTime.UtcNow;
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Sessão encerrada para o usuário {UserId}", sessao.UsuarioId);
         }
 
         public async Task EncerrarTodasDoUsuarioAsync(int usuarioId)
@@ -149,6 +174,8 @@ namespace EventFlow.Application.Services
             await _db.Sessoes
                 .Where(x => x.UsuarioId == usuarioId && x.EncerradaEm == null)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.EncerradaEm, DateTime.UtcNow));
+
+            _logger.LogInformation("Todas as sessões do usuário {UserId} foram encerradas", usuarioId);
         }
     }
 }
