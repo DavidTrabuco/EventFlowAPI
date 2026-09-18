@@ -366,3 +366,7 @@ FodyWeavers.xsd
 *.db
 *.db-shm
 *.db-wal
+
+# Segredos do docker-compose (JWT_KEY, GOOGLE_CLIENT_SECRET). O .env.example
+# fica versionado como modelo, o .env real nao.
+.env

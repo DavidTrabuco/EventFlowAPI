@@ -1,0 +1,26 @@
+services:
+  eventflow-api:
+    build:
+      context: .
+      dockerfile: EventFlow/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Sem isso, o ASP.NET Core assume "Production" dentro do container
+      # (o Visual Studio injeta "Development" por voce quando roda por la,
+      # mas o Docker nao faz esse favor). Sem "Development", o bloco
+      # if (app.Environment.IsDevelopment()) do Program.cs nunca entra,
+      # e o Swagger (/swagger) simplesmente nao existe.
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Convencao do ASP.NET Core: "__" vira ":" na configuracao.
+      # Troca o "Data Source=EventFlow.db" do appsettings.Development.json
+      # por um caminho dentro do volume nomeado, pra o banco sobreviver
+      # a recriacao do container.
+      - ConnectionStrings__DefaultConnection=Data Source=/data/EventFlow.db
+      - Jwt__Key=${JWT_KEY}
+      - Authentication__Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
+    volumes:
+      - eventflow-data:/data
+
+volumes:
+  eventflow-data:

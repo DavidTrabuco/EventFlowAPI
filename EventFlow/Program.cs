@@ -142,3 +142,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+// Exposta para o WebApplicationFactory<Program> do projeto de testes conseguir
+// enxergar esta aplicação (o modelo de top-level statements gera essa classe
+// como 'internal' por padrão).
+public partial class Program { }

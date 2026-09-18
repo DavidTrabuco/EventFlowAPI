@@ -1,0 +1,17 @@
+services:
+  ministack:
+    image: ministackorg/ministack
+    ports:
+      # Mesma ideia do LocalStack: uma porta so que "finge" ser todos os
+      # servicos da AWS ao mesmo tempo.
+      - "4566:4566"
+    environment:
+      - MINISTACK_REGION=sa-east-1
+      # Habilita persistencia de estado (repositorios, segredos criados)
+      # entre reinicializacoes do container.
+      - PERSIST_STATE=1
+    volumes:
+      # Necessario pro MiniStack conseguir emular ECS de verdade: ele usa
+      # este socket pra disparar um container Docker real na sua maquina
+      # quando voce pede pra "rodar uma task".
+      - "/var/run/docker.sock:/var/run/docker.sock"

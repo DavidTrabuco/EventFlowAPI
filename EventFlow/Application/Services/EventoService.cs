@@ -125,17 +125,20 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
             }
 
-            var dataHoraUtc = request.DataHora.Kind == DateTimeKind.Utc
-                ? request.DataHora
-                : request.DataHora.ToUniversalTime();
-
-            
-            if (dataHoraUtc <= DateTime.UtcNow)
+            if (request.DataHora.HasValue)
             {
-                throw new ArgumentException("RN02: a data do evento deve ser no futuro.");
+                var dataHoraUtc = request.DataHora.Value.Kind == DateTimeKind.Utc
+                    ? request.DataHora.Value
+                    : request.DataHora.Value.ToUniversalTime();
+
+                if (dataHoraUtc <= DateTime.UtcNow)
+                {
+                    throw new ArgumentException("RN02: a data do evento deve ser no futuro.");
+                }
+
+                evento.DataHora = dataHoraUtc;
             }
 
-          
             if (request.CapacidadeMaxima < evento.IngressosVendidos)
             {
                 throw new InvalidOperationException(
@@ -144,7 +147,6 @@ namespace EventFlow.Application.Services
 
             evento.Titulo = request.Titulo;
             evento.Descricao = request.Descricao;
-            evento.DataHora = dataHoraUtc;
             evento.Local = request.Local;
             evento.CapacidadeMaxima = request.CapacidadeMaxima;
             evento.PrecoIngresso = request.PrecoIngresso;

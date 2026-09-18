@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar o .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restaurar dependencias
+        run: dotnet restore EventFlow.sln
+
+      - name: Compilar
+        run: dotnet build EventFlow.sln --configuration Release --no-restore
+
+      - name: Rodar os testes
+        run: dotnet test EventFlow.sln --configuration Release --no-build
+        env:
+          Jwt__Key: ${{ secrets.JWT_KEY_TESTE }}
+          Jwt__Issuer: EventFlow
+          Jwt__Audience: EventFlowUsuarios
+          Authentication__Google__ClientId: teste-client-id
+          Authentication__Google__ClientSecret: ${{ secrets.GOOGLE_CLIENT_SECRET_TESTE }}
