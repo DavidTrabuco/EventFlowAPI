@@ -4,6 +4,7 @@ using EventFlow.Application.Services;
 using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -123,6 +124,26 @@ namespace EventFlow.Api.Controllers
             Response.Cookies.Delete("sessao", OpcoesCookie(null));
 
             return Ok(new { mensagem = "Logout efetuado" });
+        }
+
+        [Authorize]
+        // Apaga a conta e, em cascata, tudo que depende dela:
+        // sessoes, participante + ingressos, e eventos organizados + ingressos deles.
+        [HttpDelete("conta")]
+        public async Task<IActionResult> Deletar()
+        {
+            var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var deletar = await _authService.DeletarUsuarioAsync(usuarioId);
+
+            if (!deletar)
+            {
+                return NotFound(new { mensagem = "Usuário não encontrado." });
+            }
+
+            Response.Cookies.Delete("acesso", OpcoesCookie(null));
+            Response.Cookies.Delete("sessao", OpcoesCookie(null));
+            return Ok(new { mensagem = "Conta deletada com sucesso." });
         }
 
         // Junta aqui a logica de abrir sessao, gerar token de acesso e token de sessao, e setar os cookies

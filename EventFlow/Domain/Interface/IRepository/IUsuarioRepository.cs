@@ -6,6 +6,8 @@ namespace EventFlow.Domain.Interface.IRepository
     public interface IUsuarioRepository
     {
         Task<Usuario?> ObterPorEmailAsync(string email);
+
+        Task<Usuario?> ObterUsuarioIdAsync(int id);
         Task<bool> EmailJaExisteAsync(string email);
         Task<Usuario?> ObterPorGoogleIdAsync(string googleId);
     }

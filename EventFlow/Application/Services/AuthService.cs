@@ -80,6 +80,23 @@ namespace EventFlow.Application.Services
             }
         }
 
+        public async Task<bool> DeletarUsuarioAsync(int id)
+        {
+            var usuario = await _usuarios.ObterUsuarioIdAsync(id);
+
+            if (usuario == null)
+            {
+                _logger.LogWarning("Usuário com ID {UserId} não encontrado para deleção", id);
+                return false;
+            }
+
+            // O banco apaga em cascata sessoes, participante, eventos e ingressos.
+            _db.Usuarios.Remove(usuario);
+            await _db.SaveChangesAsync();
+            _logger.LogInformation("Usuário com ID {UserId} deletado com sucesso", id);
+            return true;
+        }
+
         public async Task<Usuario> ObterOuCriarViaGoogleAsync(string googleId, string email, string nome)
         {
             var usuarioPorGoogleId = await _usuarios.ObterPorGoogleIdAsync(googleId);

@@ -30,7 +30,7 @@ namespace EventFlow.Infrastructure.Data
                       .WithMany()
                       .HasForeignKey(e => e.OrganizadorId)
                       .IsRequired()
-                      .OnDelete(DeleteBehavior.Restrict);
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<Participante>(entity =>

@@ -28,5 +28,10 @@ namespace EventFlow.Infrastructure.Repositories
         public Task<Usuario?> ObterPorGoogleIdAsync(string googleId) =>
             Conexao.QueryFirstOrDefaultAsync<Usuario>(
                 "SELECT * FROM Usuarios WHERE GoogleId = @googleId", new { googleId });
+
+
+        public Task<Usuario?> ObterUsuarioIdAsync(int id) =>
+        Conexao.QueryFirstOrDefaultAsync<Usuario>(
+            "SELECT * FROM Usuarios WHERE Id = @id", new { id });
     }
 }
