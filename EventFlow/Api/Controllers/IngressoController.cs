@@ -4,6 +4,7 @@ using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using EventFlow.Api.Extension;
 
 namespace EventFlow.Api.Controllers
 {
