@@ -4,6 +4,7 @@ using EventFlow.Domain.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using EventFlow.Api.Extension;
 
 namespace EventFlow.Api.Controllers
 {
@@ -41,8 +42,8 @@ namespace EventFlow.Api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-
-        [Authorize(Roles = "Organizador")]
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpGet]
         public async Task<IActionResult> ListarParticipantes()
         {

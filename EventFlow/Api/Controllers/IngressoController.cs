@@ -74,7 +74,8 @@ namespace EventFlow.Api.Controllers
             }
         }
 
-        [Authorize(Roles = "Organizador")]
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpPost("checkin/{codigo}")]
         public async Task<IActionResult> CheckIn(string codigo)
         {
@@ -92,8 +93,8 @@ namespace EventFlow.Api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-
-        [Authorize(Roles = "Organizador")]
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpGet("participante/{participanteId}")]
         public async Task<IActionResult> ListarPorParticipante(int participanteId)
         {

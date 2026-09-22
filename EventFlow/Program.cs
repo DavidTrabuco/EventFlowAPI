@@ -11,6 +11,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using EventFlow.Domain.Enums;
+using EventFlow.Api.Extension;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -101,7 +103,13 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => 
+{
+    options.AddPolicy(Policies.ApenasOrganizador,  policy => policy.RequireRole(PerfilUsuario.Organizador.ToString()));
+});
+
+
+
 
 // Repositorios de LEITURA (Dapper). A escrita continua no EF, nos services.
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();

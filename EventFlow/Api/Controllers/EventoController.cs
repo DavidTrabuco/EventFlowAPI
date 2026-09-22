@@ -20,7 +20,8 @@ namespace EventFlow.Api.Controllers
             _eventoService = eventoService;
         }
 
-        [Authorize(Roles = "Organizador")]
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpPost]
         public async Task<IActionResult> CriarEvento([FromBody] CriarEventoRequest request)
         {
@@ -60,7 +61,9 @@ namespace EventFlow.Api.Controllers
             return Ok(EventoResponse.De(evento));
         }
 
-        [Authorize(Roles = "Organizador")]
+
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpPut("{id}/inativar")]
         public async Task<IActionResult> InativarEvento(int id)
         {
@@ -79,7 +82,8 @@ namespace EventFlow.Api.Controllers
             }
         }
 
-        [Authorize(Roles = "Organizador")]
+        [Authorize(Policy = Policies.ApenasOrganizador)]
+        //[Authorize(Roles = "Organizador")]
         [HttpPut("{id}")]
         public async Task<IActionResult> AtualizarEvento(int id, [FromBody] AtualizarEventoRequest request)
         {
