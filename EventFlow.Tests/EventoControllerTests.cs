@@ -1,33 +1,39 @@
 using EventFlow.Infrastructure.Data;
+using EventFlow.Tests.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Net;
 
 namespace EventFlow.Tests;
 
-public class EventoControllerTests : IClassFixture<WebApplicationFactory<Program>>
+public class EventoControllerTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
+    private readonly PostgresTestSchema _schema;
     private readonly HttpClient _client;
 
     public EventoControllerTests(WebApplicationFactory<Program> factory)
     {
+        _schema = PostgresTestSchema.Criar();
+
         _client = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                // Troca o SQLite de arquivo (EventFlow.db) por um banco em
-                // memoria isolado, so pra esta execucao de testes.
+                // Troca o Postgres do appsettings por um schema isolado, so
+                // pra esta execucao de testes (ver PostgresTestSchema).
                 services.RemoveAll<DbContextOptions<EventFlowDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<EventFlowDbContext>>();
 
-                var conexao = new SqliteConnection("Filename=:memory:");
-                conexao.Open();
-                services.AddDbContext<EventFlowDbContext>(options => options.UseSqlite(conexao));
+                services.AddDbContext<EventFlowDbContext>(options =>
+                    options.UseNpgsql(_schema.Conexao).UseSnakeCaseNamingConvention());
             });
         }).CreateClient();
     }
+
+    public void Dispose() => _schema.Derrubar();
 
     [Fact]
     public async Task ListarEventos_SemAutenticacao_DeveRetornar401()

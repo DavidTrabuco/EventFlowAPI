@@ -1,7 +1,7 @@
 # --- Etapa 1: build/publish -------------------------------------------------
 # SDK completo (compilador, NuGet etc) — so existe nesta etapa, nao vai pra
 # imagem final.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copia so o .csproj primeiro. Assim, enquanto voce so mexe no codigo (.cs),
@@ -16,14 +16,11 @@ RUN dotnet publish EventFlow/EventFlow.csproj -c Release -o /app/publish --no-re
 
 # --- Etapa 2: imagem final ---------------------------------------------------
 # Só o runtime do ASP.NET Core (bem menor que o SDK) — é o que roda em produção.
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# A imagem oficial do .NET 8 já escuta em http://+:8080 por padrão.
+# A imagem oficial do .NET 10 já escuta em http://+:8080 por padrão.
 EXPOSE 8080
-# HTTPS so e ativado quando o compose define ASPNETCORE_HTTPS_PORTS e monta o
-# certificado (.pfx); sem isso a imagem continua so em HTTP.
-EXPOSE 8081
 
 ENTRYPOINT ["dotnet", "EventFlow.dll"]

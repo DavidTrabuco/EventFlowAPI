@@ -11,5 +11,7 @@ namespace EventFlow.Domain.Interface
         Task<bool> InativarEventoAsync(int id, int organizadorId);
 
         Task<Evento> AtualizarEventoAsync(int id, AtualizarEventoRequest request, int organizadorId);
+
+        Task DesativarEventosPassados();
     }
 }

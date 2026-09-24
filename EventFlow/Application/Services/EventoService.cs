@@ -10,12 +10,12 @@ namespace EventFlow.Application.Services
 {
     public class EventoService : IEventoService
     {
-        private readonly IEventoRepository _eventos;      
-        private readonly EventFlowDbContext _context;    
+        private readonly IEventoRepository _eventos;
+        private readonly EventFlowDbContext _context;
 
-        private readonly IMemoryCache _cache; 
+        private readonly IMemoryCache _cache;
 
-        
+
 
         public EventoService(IEventoRepository eventos, EventFlowDbContext context, IMemoryCache cache)
         {
@@ -26,12 +26,12 @@ namespace EventFlow.Application.Services
 
         public async Task<Evento> CriarEventoAsync(CriarEventoRequest request, int organizadorId)
         {
-           
+
             var dataHoraUtc = request.DataHora.Kind == DateTimeKind.Utc
                 ? request.DataHora
                 : request.DataHora.ToUniversalTime();
 
-            
+
             if (dataHoraUtc <= DateTime.UtcNow)
             {
                 throw new ArgumentException("RN02: a data do evento deve ser no futuro.");
@@ -47,7 +47,7 @@ namespace EventFlow.Application.Services
                 PrecoIngresso = request.PrecoIngresso,
                 IngressosVendidos = 0,
                 Ativo = true,
-                OrganizadorId = organizadorId   
+                OrganizadorId = organizadorId
             };
 
             _context.Eventos.Add(evento);
@@ -56,7 +56,7 @@ namespace EventFlow.Application.Services
             return evento;
         }
 
-        
+
         public async Task<IEnumerable<Evento>> ListarEventosAsync()
         {
 
@@ -79,7 +79,7 @@ namespace EventFlow.Application.Services
         public async Task<Evento?> ObterPorIdAsync(int id)
         {
 
-            
+
             if (_cache.TryGetValue($"Evento_{id}", out Evento? EventoMemoryCache))
             {
                 return EventoMemoryCache;
@@ -92,14 +92,14 @@ namespace EventFlow.Application.Services
 
             return evento;
         }
-       
+
 
 
         public async Task<bool> InativarEventoAsync(int id, int organizadorId)
         {
             var evento = await _context.Eventos.FindAsync(id);
 
-            
+
             if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
@@ -119,7 +119,7 @@ namespace EventFlow.Application.Services
         {
             var evento = await _context.Eventos.FindAsync(id);
 
-           
+
             if (evento == null || evento.OrganizadorId != organizadorId)
             {
                 throw new KeyNotFoundException($"Evento {id} não encontrado.");
@@ -153,6 +153,22 @@ namespace EventFlow.Application.Services
 
             await _context.SaveChangesAsync();
             return evento;
+        }
+
+
+        public async Task DesativarEventosPassados()
+        {
+
+            var eventosPassados = await _context.Eventos
+                .Where(e => e.DataHora < DateTime.UtcNow && e.Ativo)
+                .ToListAsync();
+
+            foreach (var evento in eventosPassados)
+            {
+                evento.Ativo = false;
+            }
+
+          await  _context.SaveChangesAsync();
         }
     }
 }

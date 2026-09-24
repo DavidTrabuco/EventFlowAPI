@@ -10,12 +10,6 @@ namespace EventFlow.Infrastructure.Repositories
 {
     public class IngressoRepository : IIngressoRepository
     {
-        // ValorPago tambem e decimal gravado como TEXT: precisa do CAST.
-        private const string Campos = """
-            Id, EventoId, ParticipanteId, DataHoraCompra,
-            CAST(ValorPago AS REAL) AS ValorPago, CodigoValidacao, Status
-            """;
-
         private readonly EventFlowDbContext _db;
 
         public IngressoRepository(EventFlowDbContext db) => _db = db;
@@ -24,7 +18,7 @@ namespace EventFlow.Infrastructure.Repositories
 
         public Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId) =>
             Conexao.QueryAsync<Ingresso>(
-                $"SELECT {Campos} FROM Ingressos WHERE ParticipanteId = @participanteId",
+                "SELECT * FROM ingressos WHERE participante_id = @participanteId",
                 new { participanteId });
 
         // RN03: so ingressos ATIVOS contam. O valor vem do enum, nao de um
@@ -32,15 +26,15 @@ namespace EventFlow.Infrastructure.Repositories
         public Task<int> ContarAtivosAsync(int eventoId, int participanteId) =>
             Conexao.ExecuteScalarAsync<int>(
                 """
-                SELECT COUNT(1) FROM Ingressos
-                WHERE EventoId = @eventoId AND ParticipanteId = @participanteId
-                  AND Status = @status
+                SELECT COUNT(1) FROM ingressos
+                WHERE evento_id = @eventoId AND participante_id = @participanteId
+                  AND status = @status
                 """,
                 new { eventoId, participanteId, status = (int)StatusIngresso.Ativo });
 
         public Task<bool> CodigoJaExisteAsync(string codigo) =>
             Conexao.ExecuteScalarAsync<bool>(
-                "SELECT EXISTS (SELECT 1 FROM Ingressos WHERE CodigoValidacao = @codigo)",
+                "SELECT EXISTS (SELECT 1 FROM ingressos WHERE codigo_validacao = @codigo)",
                 new { codigo });
     }
 }
