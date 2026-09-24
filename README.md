@@ -2,7 +2,7 @@
 
 **Aqui é um projeto dedicado ao meu estudo mesmo , aplicando todos os conhecimentos que o backend me proporciona e evoluindo cada vez mais!!**
 
-API de gestão de eventos e ingressos em ASP.NET Core 8, com autenticação JWT em cookie `HttpOnly`, sessão revogável e autorização por perfil.
+API de gestão de eventos e ingressos em ASP.NET Core 10, com autenticação JWT em cookie `HttpOnly`, sessão revogável, autorização por perfil, banco **PostgreSQL** (via Docker), jobs em background com **Hangfire** e envio de e-mail real via SMTP.
 
 Projeto de estudo — o passo a passo completo da construção está no [blueprint](https://claude.ai/code/artifact/bc81f614-f44b-4450-839e-233d96922e20).
 
@@ -12,9 +12,10 @@ Projeto de estudo — o passo a passo completo da construção está no [bluepri
 
 | | Versão | Como obter |
 |---|---|---|
-| .NET SDK | **8.0** ou superior | https://dotnet.microsoft.com/download |
+| .NET SDK | **10.0** ou superior | https://dotnet.microsoft.com/download |
+| Docker Desktop | qualquer versão recente | https://www.docker.com/products/docker-desktop |
 
-Só isso. Não precisa instalar banco de dados: o projeto usa **SQLite**, que é um arquivo — sem servidor, sem porta, sem senha. O arquivo é criado sozinho na primeira execução, já com dados de exemplo.
+O banco não é mais um arquivo local: o projeto usa **PostgreSQL rodando em container Docker**. Isso é obrigatório mesmo se você rodar a API fora do Docker — não existe mais opção "sem instalar nada", porque o Hangfire (que gerencia os jobs em background) não tem storage oficial para SQLite.
 
 A ferramenta `dotnet-ef` só é necessária se você for **alterar o modelo** e gerar novas migrations:
 
@@ -42,52 +43,61 @@ dotnet restore
 
 O `restore` baixa todas as dependências listadas no `.csproj`. Não é preciso instalar pacote nenhum à mão.
 
-### 2. Configurar a chave JWT
+### 2. Configurar os segredos
 
-**Obrigatório.** A chave que assina os tokens não está no repositório — quem a tem consegue forjar um token dizendo ser qualquer usuário, com qualquer perfil. Por isso ela fica fora do Git, em cada máquina.
+Quatro segredos, nenhum vai para o Git: a chave JWT, o `ClientSecret` do Google, e agora `EMAIL_FROM`/`EMAIL_APP_PASSWORD` (conta usada para mandar e-mail de confirmação de compra).
 
-**Windows (PowerShell):**
+**Onde cada segredo é lido depende de como você roda a aplicação:**
 
+| Rodando via | Onde configurar | Por quê |
+|---|---|---|
+| `docker compose up` (recomendado) | arquivo `.env` na raiz | o container é isolado — não enxerga nada da sua máquina, `.env` é o jeito do Docker Compose injetar variável de ambiente pra dentro dele |
+| `dotnet run` direto na máquina | User Secrets (`dotnet user-secrets set ...`) | roda no seu processo local, que sabe ler o `secrets.json` guardado fora do repositório |
+
+#### 2.1 Chave JWT
+
+**Obrigatório.** A chave que assina os tokens não está no repositório — quem a tem consegue forjar um token dizendo ser qualquer usuário, com qualquer perfil.
+
+**Via `.env`** (copie `.env.example` para `.env` e preencha):
+```env
+JWT_KEY=<gere com o comando abaixo>
+```
+
+Gerar a chave — **Windows (PowerShell)**:
 ```powershell
-cd EventFlow
-dotnet user-secrets init
 $b = New-Object byte[] 32
 ([System.Security.Cryptography.RNGCryptoServiceProvider]::new()).GetBytes($b)
-dotnet user-secrets set "Jwt:Key" ([Convert]::ToBase64String($b))
+[Convert]::ToBase64String($b)
+```
+**Linux / macOS**:
+```bash
+openssl rand -base64 32
 ```
 
-**Linux / macOS:**
-
+**Via User Secrets** (se for rodar sem Docker):
 ```bash
 cd EventFlow
 dotnet user-secrets init
-dotnet user-secrets set "Jwt:Key" "$(openssl rand -base64 32)"
-```
-
-Confirme:
-
-```bash
-dotnet user-secrets list
+dotnet user-secrets set "Jwt:Key" "<chave-gerada>"
 ```
 
 > A chave é gerada, nunca digitada. Uma frase como `"minha-chave-super-secreta"` tem entropia baixíssima — é palavra de dicionário, está no topo de qualquer lista de tentativas.
 >
 > Cada pessoa gera a própria chave. Elas **não** precisam ser iguais: quem assina e quem valida é a mesma aplicação, na mesma máquina.
->
-> Em produção, use a variável de ambiente `Jwt__Key` (dois underscores no lugar dos dois pontos) ou um cofre de segredos.
 
-### 3. Configurar o login com Google (opcional)
+#### 2.2 Login com Google (opcional)
 
-**Diferente da chave do passo 2, isso não pode ser gerado localmente.** `ClientId` e `ClientSecret` são credenciais emitidas pelo Google, atreladas a um projeto cadastrado no Google Cloud — não existe comando que "gere" isso na sua máquina, é preciso ir ao site.
+**Diferente da chave JWT, isso não pode ser gerado localmente.** `ClientId` e `ClientSecret` são credenciais emitidas pelo Google, atreladas a um projeto cadastrado no Google Cloud.
 
 1. Acesse [console.cloud.google.com](https://console.cloud.google.com) e crie um projeto (ou use um existente)
-2. Vá em **Google Auth Platform → Público-alvo**, escolha **Externo**, preencha nome do app e email de suporte, e adicione seu email como **usuário de teste** (o app fica em modo de teste, só quem está nessa lista consegue logar)
+2. Vá em **Google Auth Platform → Público-alvo**, escolha **Externo**, preencha nome do app e email de suporte, e adicione seu email como **usuário de teste**
 3. Vá em **Clientes → Criar um cliente OAuth**, tipo **Aplicativo da Web**
-4. Em **URIs de redirecionamento autorizados**, adicione:
+4. Em **URIs de redirecionamento autorizados**, adicione a URL correspondente a como você vai rodar (veja passo 3 e 4 abaixo):
    ```
-   https://localhost:7076/api/auth/google/signin-callback
+   http://localhost:8080/api/auth/google/signin-callback   (via Docker)
+   https://localhost:7076/api/auth/google/signin-callback  (local, sem Docker)
    ```
-   Precisa bater **exatamente** com o `CallbackPath` configurado no `Program.cs` — qualquer diferença de barra ou porta e o Google recusa o login
+   Precisa bater **exatamente** com o `CallbackPath` configurado no `Program.cs`
 5. Copie o **ID do cliente** e a **Chave secreta do cliente** gerados
 
 O `ClientId` não é segredo — vai no `appsettings.json`:
@@ -99,27 +109,71 @@ O `ClientId` não é segredo — vai no `appsettings.json`:
 }
 ```
 
-O `ClientSecret` é segredo — mesma regra da chave JWT, vai pro User Secrets:
+O `ClientSecret` é segredo:
+```env
+# .env
+GOOGLE_CLIENT_SECRET=SEU-CLIENT-SECRET
+```
 ```bash
+# ou, sem Docker:
 dotnet user-secrets set "Authentication:Google:ClientSecret" "SEU-CLIENT-SECRET"
 ```
 
-> Sem isso configurado, a aplicação recusa subir: `GoogleAuthOptions` é validado no arranque (`ValidateOnStart`), igual ao `JwtOptions`. Se você só quer testar o login local (email/senha), pode pular este passo — mas nesse caso a aplicação ainda vai exigir esses dois valores presentes (mesmo vazios não passa na validação `[Required]`). Deixe o cadastro no Google feito antes de rodar.
+> Sem isso configurado, a aplicação recusa subir: `GoogleAuthOptions` é validado no arranque (`ValidateOnStart`), igual ao `JwtOptions`. Se você só quer testar o login local (email/senha), ainda assim precisa desses dois valores presentes (mesmo vazios não passa na validação `[Required]`) — deixe o cadastro no Google feito antes de rodar.
 
-### 4. Rodar
+#### 2.3 Envio de e-mail (Gmail SMTP)
+
+**Obrigatório.** É usado para mandar o e-mail de confirmação de compra de ingresso via MailKit.
+
+1. Acesse [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (precisa ter verificação em duas etapas ativada na conta)
+2. Gere uma **senha de app** — não é a senha normal da conta, é uma credencial extra, revogável a qualquer momento sem afetar o login
+3. Configure:
+```env
+# .env
+EMAIL_FROM=seu-email@gmail.com
+EMAIL_APP_PASSWORD=<senha-de-app-de-16-caracteres>
+```
+```bash
+# ou, sem Docker:
+dotnet user-secrets set "Email:From" "seu-email@gmail.com"
+dotnet user-secrets set "Email:AppPassword" "<senha-de-app>"
+```
+
+> Assim como `JwtOptions`/`GoogleAuthOptions`, `EmailOptions` também é validado no arranque. Sem `Email:From`/`Email:AppPassword` configurados, a aplicação lança exceção ao subir — em Docker, combinado com `restart: on-failure`, isso vira um loop de reinício sem fim (ver [Solução de problemas](#solução-de-problemas)).
+
+### 3. Subir com Docker Compose (recomendado)
+
+Sobe a API **e** o Postgres juntos, já conectados entre si:
 
 ```bash
+docker compose up -d --build
+```
+
+- `--build` é necessário sempre que o código, o `Dockerfile` ou o `.csproj` mudarem — sem ele o Docker reaproveita uma imagem antiga.
+- Acompanhar os logs: `docker compose logs eventflow-api -f`
+- Derrubar tudo: `docker compose down` (os dados do Postgres persistem no volume `postgres-data`; `docker compose down -v` também apaga o volume)
+
+Na primeira subida o banco é criado e populado automaticamente (ver [DbSeeder](EventFlow/Infrastructure/Data/DbSeeder.cs)).
+
+Abra: **http://localhost:8080/swagger**
+
+Dashboard do Hangfire: **http://localhost:8080/hangfire** (usuário/senha configurados no `Program.cs` — ver seção [Background jobs](#background-jobs-com-hangfire)).
+
+### 4. Alternativa: rodar localmente sem Docker
+
+Precisa do Postgres rodando mesmo assim — só a API sai do container:
+
+```bash
+docker compose up -d postgres
 cd EventFlow
 dotnet run --launch-profile https
 ```
 
-Na primeira execução o banco é criado e populado automaticamente (ver [DbSeeder](EventFlow/Infrastructure/Data/DbSeeder.cs)).
+A connection string local (`appsettings.Development.json`) já aponta para `Host=localhost` (diferente da usada dentro do Docker, que é `Host=postgres` — nome do serviço, não `localhost`, porque containers se enxergam pelo nome do serviço na rede do Compose).
 
 Abra: **https://localhost:7076/swagger**
 
-Pelo **Visual Studio**: selecione o perfil **https** no dropdown ao lado do ▶ e pressione F5.
-
-### Se o navegador reclamar do certificado
+#### Se o navegador reclamar do certificado (só no modo local)
 
 O cookie de sessão usa `Secure = true`, então só trafega em HTTPS. Se aparecer *"Sua conexão não é particular"*, confie no certificado de desenvolvimento — uma vez por máquina:
 
@@ -216,35 +270,56 @@ O roteiro que mostra a autorização funcionando:
 
 ---
 
+## Background jobs com Hangfire
+
+Trabalho que não precisa travar a resposta HTTP roda em background, gerenciado pelo [Hangfire](https://www.hangfire.io/), com o próprio Postgres como storage (schema `hangfire`, separado das tabelas de negócio).
+
+| Job | Tipo | Dispara quando |
+|---|---|---|
+| `DesativarEventosPassados` | Recurring (`Cron.Daily(0, 0)`) | todo dia à meia-noite — soft delete (`Ativo = false`) em eventos com `DataHora` no passado |
+| `EnviarConfirmacaoCompraAsync` | Fire-and-forget | logo após `POST /api/ingresso/comprar` |
+
+Dashboard: **`/hangfire`**, protegido por autenticação básica (usuário/senha definidos direto no `Program.cs` — troque antes de expor isso em qualquer lugar que não seja sua máquina de estudo).
+
+---
+
+## Envio de e-mail
+
+Confirmação de compra de ingresso é mandada por e-mail de verdade, via Gmail SMTP + [MailKit](https://github.com/jstedfast/MailKit) — ver [`EmailService`](EventFlow/Infrastructure/Email/EmailService.cs). Configuração em [2.3](#23-envio-de-e-mail-gmail-smtp).
+
+O envio acontece dentro do job `EnviarConfirmacaoCompraAsync` (fire-and-forget), não na resposta HTTP da compra — o e-mail chega alguns segundos depois, não instantaneamente.
+
+---
+
 ## O banco de dados
 
-O arquivo `EventFlow/EventFlow.db` **não vai para o repositório** — está no `.gitignore`. Cada pessoa gera o seu ao rodar a aplicação pela primeira vez.
+O banco é **PostgreSQL**, rodando em container Docker (serviço `postgres` no `docker-compose.yml`), com os dados persistidos no volume nomeado `postgres-data` — sobrevive a `docker compose down`, só some com `docker compose down -v`.
 
-Quem cuida disso é o [`DbSeeder`](EventFlow/Infrastructure/Data/DbSeeder.cs), chamado no `Program.cs` ao subir:
+Quem aplica o schema é o [`DbSeeder`](EventFlow/Infrastructure/Data/DbSeeder.cs), chamado no `Program.cs` ao subir:
 
-1. `MigrateAsync()` aplica as migrations pendentes e cria o `.db` se não existir
+1. `MigrateAsync()` aplica as migrations pendentes
 2. Se não houver nenhum usuário, insere os dados de exemplo
 3. Se já houver, não faz nada — seu banco de trabalho nunca é sobrescrito
 
-Isso também resolve o `git pull`: quando alguém adiciona uma migration, o schema se atualiza sozinho na próxima execução.
-
-> **Por que não commitar o `.db`:** é binário, então o Git não consegue mesclar — dois commits no mesmo arquivo viram conflito insolúvel. Ele também muda a cada execução (a tabela `Sessoes` cresce a cada login), deixando o `git status` sempre sujo. E o SQLite mantém escritas pendentes num arquivo `-wal` separado: commitar só o `.db` pode levar um banco **sem os dados** para quem clonar.
+> **Identificadores em Postgres são case-sensitive quando usados sem aspas.** O EF Core cria tabelas/colunas em PascalCase (igual ao nome da classe/propriedade C#). Uma query manual direto no banco precisa de aspas duplas: `SELECT * FROM "Eventos" WHERE "Titulo" = '...'` — sem aspas, o Postgres procura `eventos` (minúsculo) e não acha nada.
 
 ### Zerar e recomeçar
 
-Apague o arquivo e rode de novo — o seeder recria tudo:
-
 ```bash
-cd EventFlow
-rm EventFlow.db
-dotnet run --launch-profile https
+docker compose down -v
+docker compose up -d --build
 ```
 
 ### Ver os dados
 
-Abra `EventFlow/EventFlow.db` no **DBeaver**: *Nova Conexão → SQLite → Path → apontar para o arquivo*. Sem host, porta, usuário ou senha.
-
-Feche a aplicação antes de escrever pelo DBeaver — o SQLite aceita vários leitores, mas só um escritor por vez. E lembre de desconectar no DBeaver antes de apagar o banco, senão o arquivo fica travado.
+Abra o **DBeaver**: *Nova Conexão → PostgreSQL* com:
+```
+Host: localhost
+Port: 5432
+Database: eventflow
+Username: eventflow
+Password: eventflow
+```
 
 ---
 
@@ -255,17 +330,20 @@ EventFlow/
 ├─ Domain/                 # o coração — não depende de ninguém
 │  ├─ Entity/              # Usuario, Evento, Participante, Ingresso, Sessao
 │  ├─ Enums/               # PerfilUsuario, StatusIngresso
-│  └─ Interface/           # contratos dos serviços
+│  ├─ Options/             # JwtOptions, GoogleAuthOptions, EmailOptions
+│  └─ Interface/           # contratos dos serviços (IEventoService, IEmailService...)
 ├─ Application/            # as regras de negócio
 │  ├─ DTOs/Request/        # o que entra pela API
 │  ├─ DTOs/Response/       # o que sai (nunca a entidade crua)
-│  └─ Services/            # implementações
-├─ Infrastructure/Data/    # EventFlowDbContext
+│  └─ Services/            # implementações (EventoService, IngressoService...)
+├─ Infrastructure/
+│  ├─ Data/                # EventFlowDbContext, DbSeeder
+│  └─ Email/                # EmailService (MailKit/Gmail SMTP)
 ├─ Api/Controllers/        # a porta de entrada
 └─ Migrations/             # histórico do schema
 ```
 
-As dependências apontam para dentro: `Api` → `Application` → `Domain`. Por isso as interfaces ficam em `Domain` e as implementações em `Application`.
+As dependências apontam para dentro: `Api` → `Application` → `Domain`, com `Infrastructure` implementando contratos definidos no `Domain` (ex.: `IEmailService` no `Domain`, `EmailService` na `Infrastructure`).
 
 ---
 
@@ -294,21 +372,26 @@ Cada renovação queima o token de sessão usado (**rotação**). Se um token j�
 
 | Sintoma | Causa | Correção |
 |---|---|---|
-| `InvalidOperationException: Jwt:Key não configurada` | pulou o passo 2 | configure os User Secrets |
-| App não sobe, reclama de `Authentication:Google:ClientSecret` | pulou o passo 3 | configure `ClientId`/`ClientSecret` (veja passo 3) |
+| `InvalidOperationException: Jwt:Key não configurada` | pulou o passo 2.1 | configure `.env` (Docker) ou User Secrets (local) |
+| App não sobe, reclama de `Authentication:Google:ClientSecret` | pulou o passo 2.2 | configure `ClientId`/`ClientSecret` |
+| App fica reiniciando sem parar em `docker compose up` (loop infinito) | `Email:From`/`Email:AppPassword` vazios — `ValidateOnStart` derruba o app no boot, e `restart: on-failure` reinicia sem parar | preencha `EMAIL_FROM`/`EMAIL_APP_PASSWORD` no `.env` e rode `docker compose up -d --build` de novo |
 | `AuthenticationFailureException: The oauth state was missing or invalid` | redirect URI cadastrada no Google diferente do `CallbackPath`, ou app reiniciada no meio do login | confira se a URI no Google Console bate exatamente com `/api/auth/google/signin-callback`; refaça o login sem reiniciar o servidor no meio |
-| Login dá 200 mas tudo depois dá 401 | rodando em `http` | use o perfil **https** — `Secure = true` faz o navegador descartar o cookie em HTTP |
-| "Sua conexão não é particular" no navegador | certificado de dev | `dotnet dev-certs https --trust` |
-| `The process cannot access the file EventFlow.exe` | execução anterior ainda viva | `taskkill /IM EventFlow.exe /F` |
-| Visual Studio mostra erros que não existem | cache da Lista de Erros | Compilar → Recompilar Solução |
+| Login dá 200 mas tudo depois dá 401 (modo local) | rodando em `http` | use o perfil **https** — `Secure = true` faz o navegador descartar o cookie em HTTP |
+| Query direto no Postgres não acha a tabela | identificador sem aspas duplas | `SELECT * FROM "Eventos"`, não `SELECT * FROM Eventos` — Postgres dobra pra minúsculo sem aspas |
+| Container do Postgres não sobe / porta 5432 ocupada | outro Postgres (nativo ou outro container) já usando a porta | pare o serviço nativo, ou troque o mapeamento de porta no `docker-compose.yml` |
+| `401` ao abrir `/hangfire` via Docker | filtro padrão do Hangfire só aceita requisição "local"; o NAT do Docker quebra essa detecção | já resolvido no projeto via Basic Auth (`Hangfire.Dashboard.Basic.Authentication`) — confira usuário/senha no `Program.cs` |
+| "Sua conexão não é particular" no navegador (modo local) | certificado de dev | `dotnet dev-certs https --trust` |
 | `dotnet ef` não é um comando | ferramenta não instalada | `dotnet tool install --global dotnet-ef` |
 
 ---
 
 ## Stack
 
-- **ASP.NET Core 8** — Web API com controllers
-- **Entity Framework Core 8** + SQLite
+- **ASP.NET Core 10** — Web API com controllers
+- **Entity Framework Core 10** + **PostgreSQL** (Npgsql), rodando via Docker
+- **Hangfire** — jobs em background (recurring + fire-and-forget), storage no Postgres
+- **MailKit** — envio de e-mail real via SMTP (Gmail)
 - **JWT Bearer** com token em cookie `HttpOnly` / `Secure` / `SameSite=Strict`
 - **BCrypt.Net-Next** — hash de senha, custo 11
 - **Swashbuckle** — Swagger UI (apenas em Development)
+- **Docker Compose** — orquestra API + Postgres
