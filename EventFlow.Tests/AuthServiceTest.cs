@@ -3,8 +3,7 @@ using EventFlow.Domain.Entity;
 using EventFlow.Domain.Enums;
 using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
+using EventFlow.Tests.TestSupport;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -13,17 +12,8 @@ namespace EventFlow.Tests
 {
     public class AuthServiceTest
     {
-        private static EventFlowDbContext CriarContextoEmMemoria()
-        {
-            var conexao = new SqliteConnection("Filename=:memory:");
-            conexao.Open();
-            var options = new DbContextOptionsBuilder<EventFlowDbContext>()
-                .UseSqlite(conexao)
-                .Options;
-            var context = new EventFlowDbContext(options);
-            context.Database.EnsureCreated();
-            return context;
-        }
+        private static EventFlowDbContext CriarContextoEmMemoria() =>
+            PostgresTestContextFactory.CriarContexto();
 
         [Fact]
         public async Task AutenticarAsync_DeveRetornarUsuario_QuandoCredenciaisEstaoCorretas()

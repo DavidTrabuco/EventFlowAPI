@@ -1,9 +1,17 @@
+using Dapper;
+using EventFlow.Api.Extension;
 using EventFlow.Application.Services;
+using EventFlow.Domain.Entity;
+using EventFlow.Domain.Enums;
 using EventFlow.Domain.Interface;
 using EventFlow.Domain.Interface.IRepository;
-using EventFlow.Infrastructure.Data;
-using EventFlow.Infrastructure.Repositories;
 using EventFlow.Domain.Options;
+using EventFlow.Infrastructure.Data;
+using EventFlow.Infrastructure.Email;
+using EventFlow.Infrastructure.Repositories;
+using Hangfire;
+using Hangfire.PostgreSql;
+using HangfireBasicAuthenticationFilter;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -11,8 +19,11 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
-using EventFlow.Domain.Enums;
-using EventFlow.Api.Extension;
+
+// Tabelas/colunas agora sao snake_case (ver UseSnakeCaseNamingConvention abaixo),
+// mas as entidades continuam PascalCase - sem isso o Dapper (usado nos
+// repositorios de leitura) nao acha "data_hora" pra popular DataHora etc.
+DefaultTypeMap.MatchNamesWithUnderscores = true;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,8 +39,15 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddDbContext<EventFlowDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .UseSnakeCaseNamingConvention());
 
 builder.Services.AddMemoryCache();
 
@@ -79,8 +97,18 @@ builder.Services
         options.ClientSecret = googleAuthOptions?.ClientSecret ?? string.Empty;
         options.SignInScheme = "External";
         options.CallbackPath = "/api/auth/google/signin-callback";
+        // O padrao e SameSite=None, que o navegador so aceita com Secure - em
+        // HTTP (Docker local) o cookie seria descartado e o callback daria
+        // "Correlation failed". Lax basta: o Google volta com um GET normal.
+        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
     });
 
+
+builder.Services.AddHangfire(config =>
+    config.UsePostgreSqlStorage(options =>
+        options.UseNpgsqlConnection(builder.Configuration.GetConnectionString("DefaultConnection"))));
+
+builder.Services.AddHangfireServer();
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -121,6 +149,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEventoService, EventoService>();
 builder.Services.AddScoped<IIngressoService, IngressoService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IParticipanteService, ParticipanteService>();
 
 builder.Services.AddControllers()
@@ -144,7 +173,34 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.MapHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[]
+    {
+        new HangfireCustomBasicAuthenticationFilter
+        {
+            User = "admin",
+            Pass = "senha-forte-aqui"
+        }
+    }
+});
+
+
+
+
+RecurringJob.AddOrUpdate<IEventoService>(
+    "DesativarEventosPassados",
+    service => service.DesativarEventosPassados(),
+    Cron.Daily(0, 0)); // Executa todo dia a meia-noite
+
+// No container a API roda so em HTTP (o HTTPS fica com o que estiver na
+// frente dela), entao nao ha porta HTTPS pra onde redirecionar.
+// DOTNET_RUNNING_IN_CONTAINER ja vem definida nas imagens oficiais do .NET.
+if (!app.Configuration.GetValue<bool>("DOTNET_RUNNING_IN_CONTAINER"))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

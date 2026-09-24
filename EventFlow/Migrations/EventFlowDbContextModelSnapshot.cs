@@ -26,203 +26,252 @@ namespace EventFlow.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("Ativo")
-                        .HasColumnType("boolean");
+                        .HasColumnType("boolean")
+                        .HasColumnName("ativo");
 
                     b.Property<int>("CapacidadeMaxima")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("capacidade_maxima");
 
                     b.Property<DateTime>("DataHora")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_hora");
 
                     b.Property<string>("Descricao")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("descricao");
 
                     b.Property<int>("IngressosVendidos")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("ingressos_vendidos");
 
                     b.Property<string>("Local")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("local");
 
                     b.Property<int>("OrganizadorId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("organizador_id");
 
                     b.Property<decimal>("PrecoIngresso")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("preco_ingresso");
 
                     b.Property<string>("Titulo")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("titulo");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_eventos");
 
-                    b.HasIndex("OrganizadorId");
+                    b.HasIndex("OrganizadorId")
+                        .HasDatabaseName("ix_eventos_organizador_id");
 
-                    b.ToTable("Eventos");
+                    b.ToTable("eventos", (string)null);
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Ingresso", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("CodigoValidacao")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("codigo_validacao");
 
                     b.Property<DateTime>("DataHoraCompra")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_hora_compra");
 
                     b.Property<int>("EventoId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("evento_id");
 
                     b.Property<int>("ParticipanteId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("participante_id");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
 
                     b.Property<decimal>("ValorPago")
                         .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("valor_pago");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_ingressos");
 
                     b.HasIndex("CodigoValidacao")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_ingressos_codigo_validacao");
 
-                    b.HasIndex("EventoId");
+                    b.HasIndex("EventoId")
+                        .HasDatabaseName("ix_ingressos_evento_id");
 
-                    b.HasIndex("ParticipanteId");
+                    b.HasIndex("ParticipanteId")
+                        .HasDatabaseName("ix_ingressos_participante_id");
 
-                    b.ToTable("Ingressos");
+                    b.ToTable("ingressos", (string)null);
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Participante", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Cpf")
                         .IsRequired()
                         .HasMaxLength(11)
-                        .HasColumnType("character varying(11)");
+                        .HasColumnType("character varying(11)")
+                        .HasColumnName("cpf");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("email");
 
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("nome");
 
                     b.Property<int>("UsuarioId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("usuario_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_participantes");
 
                     b.HasIndex("Cpf")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_participantes_cpf");
 
                     b.HasIndex("UsuarioId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_participantes_usuario_id");
 
-                    b.ToTable("Participantes");
+                    b.ToTable("participantes", (string)null);
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Sessao", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
 
                     b.Property<DateTime?>("EncerradaEm")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("encerrada_em");
 
                     b.Property<DateTime>("ExpiraEm")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expira_em");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(88)
-                        .HasColumnType("character varying(88)");
+                        .HasColumnType("character varying(88)")
+                        .HasColumnName("token_hash");
 
                     b.Property<int>("UsuarioId")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("usuario_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_sessoes");
 
                     b.HasIndex("TokenHash")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_sessoes_token_hash");
 
-                    b.HasIndex("UsuarioId");
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_sessoes_usuario_id");
 
-                    b.ToTable("Sessoes");
+                    b.ToTable("sessoes", (string)null);
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Usuario", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("email");
 
                     b.Property<string>("GoogleId")
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("google_id");
 
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("nome");
 
                     b.Property<string>("Perfil")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("perfil");
 
                     b.Property<string>("SenhaHash")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("senha_hash");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_usuarios");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_usuarios_email");
 
                     b.HasIndex("GoogleId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_usuarios_google_id");
 
-                    b.ToTable("Usuarios");
+                    b.ToTable("usuarios", (string)null);
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Evento", b =>
@@ -231,7 +280,8 @@ namespace EventFlow.Migrations
                         .WithMany()
                         .HasForeignKey("OrganizadorId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_eventos_usuarios_organizador_id");
                 });
 
             modelBuilder.Entity("EventFlow.Domain.Entity.Ingresso", b =>
@@ -240,13 +290,15 @@ namespace EventFlow.Migrations
                         .WithMany()
                         .HasForeignKey("EventoId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_ingressos_eventos_evento_id");
 
                     b.HasOne("EventFlow.Domain.Entity.Participante", "Participante")
                         .WithMany()
                         .HasForeignKey("ParticipanteId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_ingressos_participantes_participante_id");
 
                     b.Navigation("Evento");
 
@@ -259,7 +311,8 @@ namespace EventFlow.Migrations
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_participantes_usuarios_usuario_id");
 
                     b.Navigation("Usuario");
                 });
@@ -270,7 +323,8 @@ namespace EventFlow.Migrations
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_sessoes_usuarios_usuario_id");
 
                     b.Navigation("Usuario");
                 });

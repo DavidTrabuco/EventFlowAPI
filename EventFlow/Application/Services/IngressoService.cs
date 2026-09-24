@@ -4,6 +4,7 @@ using EventFlow.Domain.Enums;
 using EventFlow.Domain.Interface;
 using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -18,13 +19,15 @@ namespace EventFlow.Application.Services
         private readonly EventFlowDbContext _context; 
         
         private readonly IMemoryCache _cache;
+        private readonly IEmailService _emailService;
 
-        public IngressoService(IIngressoRepository ingressos,IParticipanteRepository participantes,EventFlowDbContext context, IMemoryCache cache)
+        public IngressoService(IIngressoRepository ingressos,IParticipanteRepository participantes,EventFlowDbContext context, IMemoryCache cache, IEmailService emailService)
         {
             _ingressos = ingressos;
             _participantes = participantes;
             _context = context;
             _cache = cache;
+            _emailService = emailService;
         }
 
         public async Task<Ingresso> ComprarIngressoAsync(ComprarIngressoRequest request, int participanteId)
@@ -79,6 +82,8 @@ namespace EventFlow.Application.Services
             await _context.SaveChangesAsync();
 
             _cache.Remove($"ingressos_participante_{participanteId}");
+
+            BackgroundJob.Enqueue<IIngressoService>(service => service.EnviarConfirmacaoCompraAsync(ingresso.Id));
 
             return ingresso;
         }
@@ -168,6 +173,35 @@ namespace EventFlow.Application.Services
             return ingressosList;
         }
 
+        public async Task EnviarConfirmacaoCompraAsync(int ingressoId)
+        {
+            var ingresso = await _context.Ingressos
+                .Include(i => i.Participante)
+                .Include(i => i.Evento)
+                .FirstOrDefaultAsync(i => i.Id == ingressoId);
+
+            if (ingresso == null)
+            {
+                throw new KeyNotFoundException("Ingresso não encontrado.");
+            }
+
+            if (ingresso.Participante == null || string.IsNullOrWhiteSpace(ingresso.Participante.Email))
+            {
+                throw new InvalidOperationException("Participante do ingresso não possui e-mail cadastrado.");
+            }
+
+            var assunto = "Confirmação de compra - EventFlow";
+            var corpoHtml = $"""
+                <h2>Compra confirmada!</h2>
+                <p>Olá, {ingresso.Participante.Nome}.</p>
+                <p>Seu ingresso para <strong>{ingresso.Evento?.Titulo}</strong> foi confirmado.</p>
+                <p><strong>Código de validação:</strong> {ingresso.CodigoValidacao}</p>
+                <p>Valor pago: {ingresso.ValorPago:C}</p>
+                """;
+
+            await _emailService.EnviarAsync(ingresso.Participante.Email, assunto, corpoHtml);
+        }
+        
 
 
         private async Task<string> GerarCodigoUnicoAsync()

@@ -9,5 +9,6 @@ namespace EventFlow.Domain.Interface
         Task<bool> CancelarIngressoAsync(int ingressoId, int participanteId);
         Task<bool> ValidarCheckInAsync(string codigoValidacao);
         Task<IEnumerable<Ingresso>> ListarPorParticipanteAsync(int participanteId);
+        Task EnviarConfirmacaoCompraAsync(int ingressoId);
     }
 }
