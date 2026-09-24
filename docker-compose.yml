@@ -4,13 +4,13 @@ services:
       context: .
       dockerfile: EventFlow/Dockerfile
     depends_on:
-      # So sobe a API depois que o healthcheck do Postgres passar - sem isso
-      # o compose so espera o container iniciar, nao o banco aceitar conexoes.
-      postgres:
-        condition: service_healthy
+      - postgres
+    # O depends_on so espera o container do Postgres iniciar, nao o banco
+    # aceitar conexoes. Se a API subir antes e cair no MigrateAsync do
+    # DbSeeder, o Docker reinicia ela ate o banco responder.
+    restart: on-failure
     ports:
       - "8080:8080"
-      - "8081:8081"
     environment:
       # Sem isso, o ASP.NET Core assume "Production" dentro do container
       # (o Visual Studio injeta "Development" por voce quando roda por la,
@@ -25,17 +25,11 @@ services:
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=eventflow;Username=eventflow;Password=eventflow
       - Jwt__Key=${JWT_KEY}
       - Authentication__Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
-      # HTTPS local: o container nao enxerga o repositorio de certificados do
-      # Windows, entao o certificado de dev e exportado pra um .pfx
-      # (dotnet dev-certs https -ep %USERPROFILE%\.aspnet\https\eventflow.pfx -p <senha>)
-      # e montado em /https. Com a porta HTTPS definida, o UseHttpsRedirection
-      # passa a redirecionar o 8080 pro 8081.
-      - ASPNETCORE_HTTP_PORTS=8080
-      - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/eventflow.pfx
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=${CERT_PASSWORD}
-    volumes:
-      - ${USERPROFILE}/.aspnet/https:/https:ro
+      - Email__From=${EMAIL_FROM}
+      - Email__AppPassword=${EMAIL_APP_PASSWORD}
+      # So HTTP no Docker local: HTTPS dentro do container exigiria exportar o
+      # certificado de dev pra .pfx e montar aqui. Em producao quem cuida do
+      # HTTPS e o que fica na frente da API (load balancer, proxy).
 
   postgres:
     image: postgres:15.3-alpine
@@ -47,11 +41,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U eventflow -d eventflow"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
 volumes:
   postgres-data:

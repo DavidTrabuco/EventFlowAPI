@@ -76,7 +76,7 @@ namespace EventFlow.Infrastructure.Data
                       .HasMaxLength(50);
                 entity.HasIndex(u => u.Email).IsUnique();
 
-                // Unico, mas SQLite permite varios NULLs num indice unico
+                // Unico, mas o Postgres permite varios NULLs num indice unico
                 // (nao conflita entre si) - contas locais sem GoogleId ficam de boa.
                 entity.HasIndex(u => u.GoogleId).IsUnique();
             });

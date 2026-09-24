@@ -1,9 +1,10 @@
 using EventFlow.Application.DTOs.Request;
 using EventFlow.Domain.Enums;
 using EventFlow.Infrastructure.Data;
+using EventFlow.Tests.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Net;
@@ -11,26 +12,31 @@ using System.Net.Http.Json;
 
 namespace EventFlow.Tests;
 
-public class AuthControllerTests : IClassFixture<WebApplicationFactory<Program>>
+public class AuthControllerTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
+    private readonly PostgresTestSchema _schema;
     private readonly HttpClient _client;
 
     public AuthControllerTests(WebApplicationFactory<Program> factory)
     {
+        _schema = PostgresTestSchema.Criar();
+
         _client = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                // Mesma troca do EventoControllerTests: SQLite de arquivo -> em memoria,
-                // isolado por execucao. O Program.cs roda igual, incluindo o DbSeeder.
+                // Mesma troca do EventoControllerTests: Postgres do appsettings ->
+                // schema isolado, por execucao. O Program.cs roda igual, incluindo o DbSeeder.
                 services.RemoveAll<DbContextOptions<EventFlowDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<EventFlowDbContext>>();
 
-                var conexao = new SqliteConnection("Filename=:memory:");
-                conexao.Open();
-                services.AddDbContext<EventFlowDbContext>(options => options.UseSqlite(conexao));
+                services.AddDbContext<EventFlowDbContext>(options =>
+                    options.UseNpgsql(_schema.Conexao).UseSnakeCaseNamingConvention());
             });
         }).CreateClient();
     }
+
+    public void Dispose() => _schema.Derrubar();
 
     [Fact]
     public async Task Login_DeveRetornar401_QuandoCredenciaisInvalidas()

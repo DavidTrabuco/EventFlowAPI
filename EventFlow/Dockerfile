@@ -22,8 +22,5 @@ COPY --from=build /app/publish .
 
 # A imagem oficial do .NET 10 já escuta em http://+:8080 por padrão.
 EXPOSE 8080
-# HTTPS so e ativado quando o compose define ASPNETCORE_HTTPS_PORTS e monta o
-# certificado (.pfx); sem isso a imagem continua so em HTTP.
-EXPOSE 8081
 
 ENTRYPOINT ["dotnet", "EventFlow.dll"]

@@ -4,7 +4,7 @@ using EventFlow.Domain.Entity;
 using EventFlow.Domain.Enums;
 using EventFlow.Domain.Interface.IRepository;
 using EventFlow.Infrastructure.Data;
-using Microsoft.Data.Sqlite;
+using EventFlow.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
@@ -14,19 +14,8 @@ namespace EventFlow.Tests;
 
 public class EventoServiceTests
 {
-    private static EventFlowDbContext CriarContextoEmMemoria()
-    {
-        var conexao = new SqliteConnection("Filename=:memory:");
-        conexao.Open();
-
-        var options = new DbContextOptionsBuilder<EventFlowDbContext>()
-            .UseSqlite(conexao)
-            .Options;
-
-        var context = new EventFlowDbContext(options);
-        context.Database.EnsureCreated();
-        return context;
-    }
+    private static EventFlowDbContext CriarContextoEmMemoria() =>
+        PostgresTestContextFactory.CriarContexto();
 
     [Fact]
     public async Task CriarEventoAsync_DeveLancarArgumentException_QuandoDataNoPassado()
