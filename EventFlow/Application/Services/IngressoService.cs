@@ -45,13 +45,16 @@ namespace EventFlow.Application.Services
                 throw new KeyNotFoundException("Participante não encontrado.");
             }
 
-           
             if (!evento.Ativo)
             {
                 throw new InvalidOperationException("RN06: evento inativo, compras bloqueadas.");
             }
 
-           
+            if (evento.DataHora < DateTime.UtcNow)
+            {
+                throw new InvalidOperationException("RN02: evento já ocorreu, compras bloqueadas.");
+            }
+
             if (evento.IngressosVendidos >= evento.CapacidadeMaxima)
             {
                 throw new InvalidOperationException("RN01: capacidade máxima do evento atingida.");
